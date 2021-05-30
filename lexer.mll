@@ -39,6 +39,7 @@ rule token = parse
   | "let"     { LET }
   | "rec"     { REC }
   | "return"  { RETURN }
+  | "print"   { PRINT }
 
   (* variable *)
   | alpha alnum*
@@ -49,6 +50,9 @@ rule token = parse
 
   (* spaces *)
   | space+    { token lexbuf }
+
+  (* comments *)
+  | '#' [^ '\n']*  { token lexbuf }
 
   | _
     {

@@ -31,6 +31,7 @@
 %token LET      // "let"
 %token REC      // "rec"
 %token RETURN   // "return"
+%token PRINT    // "print"
 
 // End of file
 %token EOF 
@@ -64,6 +65,18 @@ main:
 tup_inner:
   | exp { [$1] }
   | exp COMMA tup_inner { $1::$3 }
+;
+	
+
+// vars inner
+vars_inner:
+  | VAR { [$1] }
+  | VAR COMMA vars_inner { $1::$3 }
+;
+	
+// vars
+vars:
+  | LPAREN vars_inner RPAREN { $2 }
 ;
 	
 // body of a function
@@ -120,8 +133,8 @@ exp:
     { Lt ($1, $3) }    
 
   // func (x1, ..., xn) { block }
-  | FUNC LPAREN tup_inner RPAREN body
-     { Func ($3, $5) }
+  | FUNC vars body
+     { Func ($2, $3) }
 
   // application
   | app { $1 }
@@ -130,7 +143,7 @@ exp:
 // statement
 stmt:
   // f (e1, ..., en)
-  | app { Exp $1 }
+  | app SEMICOL { Exp $1 } 
 
   // Return
   | RETURN exp SEMICOL
@@ -141,8 +154,8 @@ stmt:
     { Assign ($1, $3) }
 
   // func f (x1, ..., xn) { block } block
-  | FUNC VAR LPAREN tup_inner RPAREN body block
-    { Let ($2, RecFunc ($2, $4, $6), $7) }
+  | FUNC VAR vars body block
+    { Let ($2, RecFunc ($2, $3, $4), $5) }
 
   // Bind.	
   | LET VAR EQ exp SEMICOL block
@@ -155,7 +168,11 @@ stmt:
   // while exp block
   | WHILE exp stmt
    { While ($2, $3) }
-  
+
+  // print e
+  | PRINT exp SEMICOL
+   { Print $2 }
+    
   // Block
   | LCBRA block RCBRA
    { $2 }

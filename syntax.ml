@@ -8,8 +8,8 @@ type exp =
   | Plus of exp * exp                    (* e + e *)
   | Times of exp * exp                   (* e * e *)
   | Lt of exp * exp                      (* e < e *)
-  | Func of exp list * stmt              (* func (x, y) {return x + y} *)
-  | RecFunc of string * exp list * stmt  (* func f (x, y) {return x + y} *)
+  | Func of string list * stmt              (* func (x, y) {return x + y} *)
+  | RecFunc of string * string list * stmt  (* func f (x, y) {return x + y} *)
   | App of exp * exp list                (* f(x1, ..., xn) *)
 			
 and stmt =
@@ -20,12 +20,23 @@ and stmt =
   | Let of string * exp * stmt        (* let binding. e.g. `let x = 3; ...` *)
   | Skip                              (* skip *)
   | Return of exp                     (* return e *)
-		
+  | Print of exp                      (* print e *)
+    
 (* value *)			 
 type value =
   | VoidVal
   | IntVal of int
   | BoolVal of bool
-  | FuncVal of string list * exp * env (* closure *)
-  | RecFuncVal of string * string list * exp * env (* closure *)
+  | FuncVal of string list * stmt * env (* closure *)
+  | RecFuncVal of string * string list * stmt * env (* closure *)
  and env = (string * value ref) list (* environment e.g. [("x", 1); ("y", 2)]*)
+
+
+let string_of_value = function
+  | VoidVal -> "void"
+  | IntVal i -> string_of_int i
+  | BoolVal true -> "true"
+  | BoolVal false -> "false"
+  | FuncVal (args, body, env') -> "Func ..."
+  | RecFuncVal (f, args, body, env') -> "RecFunc ..."
+				
