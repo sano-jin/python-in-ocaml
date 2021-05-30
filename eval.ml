@@ -23,6 +23,7 @@ let rec update var value env =
 		    
 (* The evaluator *)
 
+(*
 let curry f (x, y) = f x y
 		    
 (* mapM for a state monad *)		    
@@ -44,6 +45,7 @@ let eval_binop_int f e1 e2 env =
 		       
 (* eval_exp : exp -> env -> int *)
 let rec eval_exp exp env =
+  let return value = (value, env)
   match exp with
   | IntLit num -> (num, env)
   | IntLit num -> (num, env)
@@ -82,3 +84,4 @@ let rec eval_command command env =
      let value = eval_a_exp a_exp env in
      update var value env
 	    
+ *)

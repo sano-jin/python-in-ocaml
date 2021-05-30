@@ -49,7 +49,7 @@
 %nonassoc INT TRUE FALSE LPAREN
 
 %start main
-%type <Syntax.exp> main
+%type <Syntax.stmt> main
 
 %%
 
@@ -63,13 +63,19 @@ main:
 tup_inner:
   | exp { [$1] }
   | exp COMMA tup_inner { $1::$3 }
-
+;
+	
 // body of a function
 body:
   | LCBRA block RCBRA { $2 }
-  | LCBRA RCBRA     { Skip }
-		     
+  | LCBRA RCBRA       { Skip }
+;		     
 
+// application
+app:
+  // f (e1, ..., en)
+  | VAR LPAREN tup_inner RPAREN { App ($1, $3) }  
+ 
 // expression
 exp:
   | VAR
@@ -104,49 +110,47 @@ exp:
   | LPAREN exp RPAREN
     { $2 }
 
-  // f (e1, ..., en)
-  | VAR LPAREN tup_inner RPAREN { App ($1, $3) }  
+  // application
+  | app { $1 }	 
 ;
 
 // statement
-statement:
-  // expression     
-  | exp { $1 }
+stmt:
+  // f (e1, ..., en)
+  | app { Exp $1 }
 
   // Return
-  | RETURN exp
+  | RETURN exp SEMICOL
     { Return $2 }
   
   // Assignment
-  | VAR ASSIGN exp
+  | VAR ASSIGN exp SEMICOL
     { Assign ($1, $3) }
-  
-// block
-block:       
-  | statement { $1 }
+
+    // func f (x1, ..., xn) { block }
+  | FUNC VAR LPAREN tup_inner RPAREN body
+    { Func ($2, $4, $6) }
 
   // Bind.	
   | LET VAR EQ exp SEMICOL block
     { Let ($2, $4, $6) }
   
-  // e1; e2
-  | exp SEMICOL block
-    { Seq ($1, $3) }
-    
-  // e;
-  | block SEMICOL
-  { $1 }
-	  
   // while exp block
-  | WHILE exp block
+  | WHILE exp stmt
    { While ($2, $3) }
   
-  // func f (x1, ..., xn) { block }
-  | FUNC VAR LPAREN tup_inner RPAREN body { Func ($2, $4, $6) }
-    
   // Block
   | LCBRA block RCBRA
-    { $2 }
+   { $2 }
+;
+    
+// block
+block:       
+  // stmt1 stmt2 ...
+  | stmt block
+    { Seq ($1, $2) }
+    
+  | stmt { $1 }
 
   | error
     { 
