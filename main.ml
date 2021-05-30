@@ -3,24 +3,12 @@
 open Syntax ;;
 open Eval ;;
 
-(* parse : string -> command *)
+(* parse : string -> stmt *)
 let parse str = 
   Parser.main Lexer.token 
     (Lexing.from_string str)
 
 
-(* Main.run 
-"let X = 4;
- let Y = 1;
- let Z = 0;
- while (Z < X) {
-   Y := 2 * Y;
-   Z := Z + 1;
- }
- print Y;
-"
- -> 16
-*)
 let run str = 
   eval_stmt [] (parse str)
 

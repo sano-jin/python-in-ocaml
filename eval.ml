@@ -7,15 +7,12 @@ let flip f x y = f y x
   
 (* Some helper functions for dealing the environment *)
 
-
-
 let rec lookup var env =
   match env with
   | [] -> failwith @@ "unbound variable '" ^ var ^ "'"
   | (var2, refVal)::t ->
      if var = var2 then !refVal
      else lookup var t
-
 
 let rec update var value env =
   match env with
@@ -24,19 +21,15 @@ let rec update var value env =
      if var = var2 then refVal := value
      else update var value t
 
-
 (* some helper functions *)		    
-
-(* The evaluator *)
-		      
-		      
 let extract_int = function
   | IntVal i -> i
   | _ -> failwith @@ "type error. expected int"
     
+(* The evaluator *)
 (* eval_exp : exp -> env -> int *)
 let rec eval_exp env exp =
-  let eval_binop f e1 e2 env =
+  let eval_binop f e1 e2 =
     f (eval_exp env e1) (eval_exp env e2)
   in  
   let eval_binop_int f =
@@ -52,11 +45,11 @@ let rec eval_exp env exp =
   | IntLit num -> IntVal num
   | BoolLit bool -> BoolVal bool
   | Plus (e1, e2) ->
-     IntVal (eval_binop_int (+) e1 e2 env)
+     IntVal (eval_binop_int (+) e1 e2)
   | Times (e1, e2) ->
-     IntVal (eval_binop_int ( * ) e1 e2 env)
+     IntVal (eval_binop_int ( * ) e1 e2)
   | Lt (e1, e2) ->
-     BoolVal (eval_binop_int ( < ) e1 e2 env)
+     BoolVal (eval_binop_int ( < ) e1 e2)
   | Func (args, body) ->
      FuncVal (args, body, env)
   | RecFunc (f, args, body) ->
