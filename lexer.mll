@@ -37,6 +37,7 @@ rule token = parse
   | "while"   { WHILE }
   | "func"    { FUNC }
   | "let"     { LET }
+  | "rec"     { REC }
   | "return"  { RETURN }
 
   (* variable *)

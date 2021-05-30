@@ -29,6 +29,7 @@
 %token WHILE    // "while"
 %token FUNC     // "func"
 %token LET      // "let"
+%token REC      // "rec"
 %token RETURN   // "return"
 
 // End of file
@@ -46,7 +47,7 @@
 %nonassoc UNARY
 %nonassoc FUNC
 %nonassoc VAR
-%nonassoc INT TRUE FALSE LPAREN
+%nonassoc INT TRUE FALSE LPAREN LCBRA
 
 %start main
 %type <Syntax.stmt> main
@@ -74,8 +75,16 @@ body:
 // application
 app:
   // f (e1, ..., en)
-  | VAR LPAREN tup_inner RPAREN { App ($1, $3) }  
- 
+  | exp arg_exp { App ($1, $2) }
+;
+
+// argument
+arg_exp:
+  // (e1, ..., en)
+  | LPAREN tup_inner RPAREN { $2 }  
+  | LPAREN RPAREN { [] } 
+;
+  
 // expression
 exp:
   | VAR
@@ -88,6 +97,10 @@ exp:
   | MINUS INT %prec UNARY
     { IntLit (- $2) }
   
+  // Parentheses
+  | LPAREN exp RPAREN
+    { $2 }
+
   // e1 + e2
   | exp PLUS exp
     { Plus ($1, $3) }
@@ -106,12 +119,12 @@ exp:
   | exp LT exp
     { Lt ($1, $3) }    
 
-  // Parentheses
-  | LPAREN exp RPAREN
-    { $2 }
+  // func (x1, ..., xn) { block }
+  | FUNC LPAREN tup_inner RPAREN body
+     { Func ($3, $5) }
 
   // application
-  | app { $1 }	 
+  | app { $1 }
 ;
 
 // statement
@@ -127,13 +140,17 @@ stmt:
   | VAR ASSIGN exp SEMICOL
     { Assign ($1, $3) }
 
-    // func f (x1, ..., xn) { block }
-  | FUNC VAR LPAREN tup_inner RPAREN body
-    { Func ($2, $4, $6) }
+  // func f (x1, ..., xn) { block } block
+  | FUNC VAR LPAREN tup_inner RPAREN body block
+    { LetRec ($2, Func ($4, $6), $7) }
 
   // Bind.	
   | LET VAR EQ exp SEMICOL block
     { Let ($2, $4, $6) }
+  
+  // Recursive Bind.	
+  | LET REC VAR EQ exp SEMICOL block
+    { LetRec ($3, $5, $7) }
   
   // while exp block
   | WHILE exp stmt
