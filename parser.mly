@@ -142,15 +142,15 @@ stmt:
 
   // func f (x1, ..., xn) { block } block
   | FUNC VAR LPAREN tup_inner RPAREN body block
-    { LetRec ($2, Func ($4, $6), $7) }
+    { Let ($2, RecFunc ($2, $4, $6), $7) }
 
   // Bind.	
   | LET VAR EQ exp SEMICOL block
     { Let ($2, $4, $6) }
   
-  // Recursive Bind.	
-  | LET REC VAR EQ exp SEMICOL block
-    { LetRec ($3, $5, $7) }
+  // // Recursive Bind.	
+  // | LET REC VAR EQ exp SEMICOL block
+  //   { LetRec ($3, $5, $7) }
   
   // while exp block
   | WHILE exp stmt
