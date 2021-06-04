@@ -1,12 +1,12 @@
-# imp-in-ocaml
+# go-in-ocaml
 
-An IMP (very simple imperative language) interpreter written in OCaml.
+A Go (like) language interpreter written in OCaml.
 
 ## How to use
 
 1. run `make`
-2. run `./imp`.
-3. run `Main.run "X := 4; Y := 1; Z := 0; while (Z < X) { Y := 2 * Y; Z := Z + 1 }" ;;`
+2. run `./go`.
+3. run `Main.exec 'test/sample.imp'" ;;`
    and so on...
 
 ## Modules

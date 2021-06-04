@@ -6,6 +6,7 @@ func f (x, y) {
   return func (z) {
     Z := 2;
     return x + y * z;
+    Z := 5; # Never reaches here
   };
 }
 while (Z < X) {
@@ -14,5 +15,5 @@ while (Z < X) {
   Z := Z + 1;
 }
 print f (Y, 7)(3);
-let Z = 3;
+# let Z = 3;
 print Z;

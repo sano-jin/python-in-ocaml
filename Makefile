@@ -4,7 +4,7 @@
 
 SRC= syntax.ml parser.mly lexer.mll eval.ml main.ml 
 COMPONENT= syntax.ml parser.mli parser.ml lexer.ml eval.ml main.ml 
-TARGET= imp
+TARGET= go
 
 all:	$(TARGET)
 
