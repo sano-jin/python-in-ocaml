@@ -20,7 +20,6 @@ and stmt =
   | Let of string * exp * stmt  (** let binding. e.g. `let x = 3; ...` *)
   | Skip  (** skip *)
   | Return of exp  (** return e *)
-  | Print of exp  (** print e *)
 
 (** value *)
 type value =

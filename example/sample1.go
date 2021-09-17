@@ -4,7 +4,7 @@ let Y = 1;
 let Z = 0; 
 while (Z < X) {
   Y := 2 * Y;
-  print Y;
+  print(Y);
   Z := Z + 1;
 }
-print Y;
+print(Y, Z);

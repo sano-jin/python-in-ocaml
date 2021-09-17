@@ -31,7 +31,6 @@
 %token LET      // "let"
 %token REC      // "rec"
 %token RETURN   // "return"
-%token PRINT    // "print"
 
 // End of file
 %token EOF 
@@ -169,10 +168,6 @@ stmt:
   | WHILE exp stmt
    { While ($2, $3) }
 
-  // print e
-  | PRINT exp SEMICOL
-   { Print $2 }
-    
   // Block
   | LCBRA block RCBRA
    { $2 }
