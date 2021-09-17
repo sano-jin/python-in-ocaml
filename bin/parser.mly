@@ -4,8 +4,9 @@
   open Syntax
 %}
 
-%token <string> VAR  // x, y, abc, ...
-%token <int> INT     // 0, 1, 2, ...
+%token <string> VAR  // "x", "y", "abc", ...
+%token <int> INT     // "0", "1", "2", ...
+%token <int> INDENT  // indent
 
 // operators
 %token PLUS     // '+'
@@ -142,48 +143,32 @@ exp:
 
 // statement
 stmt:
-  // f (e1, ..., en) ;
-  | app SEMICOL { Exp $1 } 
+  // f (e1, ..., en)
+  | app { Exp $1 } 
 
   // Return
-  | RETURN exp SEMICOL
+  | RETURN exp
     { Return $2 }
   
-  // Assignment
-  | VAR ASSIGN exp SEMICOL
-    { Assign ($1, $3) }
-
   // func f (x1, ..., xn) { block } block
   | FUNC VAR vars body block
     { Let ($2, RecFunc ($2, $3, $4), $5) }
 
-  // Bind.	
-  | LET VAR EQ exp SEMICOL block
-    { Let ($2, $4, $6) }
-  
-  // // Recursive Bind.	
-  // | LET REC VAR EQ exp SEMICOL block
-  //   { LetRec ($3, $5, $7) }
-  
-  // while exp block
-  | WHILE exp stmt
-   { While ($2, $3) }
+  // while exp :
+  | WHILE exp COL
+   { While ($2, []) }
 
   // print e
-  | PRINT exp SEMICOL
-   { Print $2 }
-    
-  // Block
-  | LCBRA block RCBRA
-   { $2 }
+  | PRINT exp
+   { Print $2 }    
 ;
     
-// block
-block:       
-  // stmt1 stmt2 ...
-  | stmt block
-    { Seq ($1, $2) }
+// lines
+lines:       
+  // stmt1 \n stmt2 ...
+  | INDENT stmt lines
+    { ($1, $2) :: $3 }
     
-  | stmt { $1 }
+  | INDENT stmt { ($1, $2) }
 ;
 

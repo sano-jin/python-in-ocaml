@@ -16,8 +16,7 @@ and stmt =
   | Exp of exp
   | Assign of string * exp  (** assignment e.g. x := 1 + 2 * y *)
   | Seq of stmt * stmt  (** sequence e.g. x := 2; y := x + 1 *)
-  | While of exp * stmt  (** loop e.g. while (1 < x) { x := x + 1 } *)
-  | Let of string * exp * stmt  (** let binding. e.g. `let x = 3; ...` *)
+  | While of exp * stmt list  (** loop e.g. while (1 < x) { x := x + 1 } *)
   | Skip  (** skip *)
   | Return of exp  (** return e *)
   | Print of exp  (** print e *)

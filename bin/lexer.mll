@@ -3,6 +3,7 @@
 {
   open Parser
   exception SyntaxError of string
+  let paren_depth = ref 0
 }
 
 let space = [' ' '\t']
@@ -23,14 +24,14 @@ rule token = parse
   | '-'       { MINUS }
   | '*'       { ASTERISK }
   | '<'       { LT }
+  | ':'       { COL }
   | ';'       { SEMICOL }
   | ','       { COMMA }
-  | ":="      { ASSIGN }
   | '='       { EQ }
 
   (* Parentheses *)
-  | '('       { LPAREN }
-  | ')'       { RPAREN }
+  | '('       { incr paren_depth; LPAREN }
+  | ')'       { decr paren_depth; RPAREN }
   | '{'       { LCBRA }
   | '}'       { RCBRA }
   
@@ -51,10 +52,13 @@ rule token = parse
   (* end of file *)
   | eof       { EOF }
 
+  (* indent *)
+  | newline space*
+    { Lexing.new_line lexbuf; if !paren_depth > 0 then token lexbuf else INDENT (pred lexbuf.lex_buffer_len) }
+
   (* spaces *)
   | space+    { token lexbuf }
 
-  | newline  { Lexing.new_line lexbuf; token lexbuf }
 
   (* comments *)
   | '#' [^ '\n']*  { token lexbuf }
@@ -64,7 +68,7 @@ rule token = parse
       let message = Printf.sprintf
         "Unknown token '%s' near line %d (near characters %d-%d)"
         (Lexing.lexeme lexbuf)
-        lexbuf.lex_curr_p.pos_lnum
+        (pred lexbuf.lex_curr_p.pos_lnum )
         (Lexing.lexeme_start lexbuf)
         (Lexing.lexeme_end lexbuf)
       in

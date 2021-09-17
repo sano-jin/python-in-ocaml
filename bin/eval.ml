@@ -35,7 +35,11 @@ let rec eval_exp env exp =
           @@ (f, ref @@ RecFuncVal (f, vars, body, env'))
              :: List.combine vars argVals
           @ env'
-      | _ -> failwith @@ "expected function type")
+      | _ ->
+          if f = "print" then (
+            Printf.printf "%s\n" @@ string_of_value @@ eval_exp env e;
+            VoidVal)
+          else failwith @@ "expected function type")
 
 and eval_stmt env stmt =
   let mzero _ = None in
