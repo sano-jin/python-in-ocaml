@@ -2,12 +2,15 @@
 
 {
   open Parser
+  exception SyntaxError of string
 }
 
-let space = [' ' '\t' '\n' '\r']
+let space = [' ' '\t']
 let digit = ['0'-'9']
 let alpha = ['A'-'Z' 'a'-'z' '_']
 let alnum = digit | alpha | '\''
+let newline = '\r' | '\n' | "\r\n"
+
 
 rule token = parse
   (* Number *)
@@ -51,16 +54,19 @@ rule token = parse
   (* spaces *)
   | space+    { token lexbuf }
 
+  | newline  { Lexing.new_line lexbuf; token lexbuf }
+
   (* comments *)
   | '#' [^ '\n']*  { token lexbuf }
 
   | _
     {
       let message = Printf.sprintf
-        "unknown token %s near characters %d-%d"
+        "Unknown token '%s' near line %d (near characters %d-%d)"
         (Lexing.lexeme lexbuf)
+        lexbuf.lex_curr_p.pos_lnum
         (Lexing.lexeme_start lexbuf)
         (Lexing.lexeme_end lexbuf)
       in
-      failwith message
+      raise @@ SyntaxError message
     }

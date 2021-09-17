@@ -1,0 +1,9 @@
+(menhir
+ (modules parser))
+
+(ocamllex lexer)
+
+(executable
+ (name main)
+ (public_name go)
+ )

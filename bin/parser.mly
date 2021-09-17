@@ -142,7 +142,7 @@ exp:
 
 // statement
 stmt:
-  // f (e1, ..., en)
+  // f (e1, ..., en) ;
   | app SEMICOL { Exp $1 } 
 
   // Return
@@ -185,16 +185,5 @@ block:
     { Seq ($1, $2) }
     
   | stmt { $1 }
-
-  | error
-    { 
-      let message =
-        Printf.sprintf 
-          "parse error near characters %d-%d"
-          (Parsing.symbol_start ())
-	        (Parsing.symbol_end ())
-	    in
-	    failwith message
-	  }
 ;
 

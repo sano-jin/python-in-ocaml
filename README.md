@@ -4,10 +4,8 @@ A Go (like) language interpreter written in OCaml.
 
 ## How to use
 
-1. run `make`
-2. run `./go`.
-3. run `Main.exec "test/sample.imp";;`
-   and so on...
+run `./run example/sample1.go`
+
 
 ## Modules
 
