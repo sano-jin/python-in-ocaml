@@ -25,21 +25,22 @@ let rec eval_exp env exp =
   | Func (args, body) -> FuncVal (args, body, env)
   | RecFunc (f, args, body) -> RecFuncVal (f, args, body, env)
   | App (f, args) -> (
-      let argVals = List.map (ref <. eval_exp env) args in
-      match eval_exp env f with
-      | FuncVal (vars, body, env') ->
-          value VoidVal @@ flip eval_stmt body @@ List.combine vars argVals
-          @ env'
-      | RecFuncVal (f, vars, body, env') ->
-          value VoidVal @@ flip eval_stmt body
-          @@ (f, ref @@ RecFuncVal (f, vars, body, env'))
-             :: List.combine vars argVals
-          @ env'
-      | _ ->
-          if f = "print" then (
-            Printf.printf "%s\n" @@ string_of_value @@ eval_exp env e;
-            VoidVal)
-          else failwith @@ "expected function type")
+      let argVals = List.map (eval_exp env) args in
+      if f = Var "print" then (
+        print_endline @@ String.concat ", " @@ List.map string_of_value argVals;
+        VoidVal)
+      else
+        let argVals = List.map ref argVals in
+        match eval_exp env f with
+        | FuncVal (vars, body, env') ->
+            maybe VoidVal @@ flip eval_stmt body @@ List.combine vars argVals
+            @ env'
+        | RecFuncVal (f, vars, body, env') ->
+            maybe VoidVal @@ flip eval_stmt body
+            @@ (f, ref @@ RecFuncVal (f, vars, body, env'))
+               :: List.combine vars argVals
+            @ env'
+        | _ -> failwith @@ "expected function type")
 
 and eval_stmt env stmt =
   let mzero _ = None in
@@ -56,5 +57,3 @@ and eval_stmt env stmt =
   | Let (var, e, stmt) -> eval_stmt ((var, ref @@ eval_exp env e) :: env) stmt
   | Skip -> None
   | Return e -> Some (eval_exp env e)
-  | Print e ->
-      mzero @@ Printf.printf "%s\n" @@ string_of_value @@ eval_exp env e

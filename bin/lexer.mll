@@ -4,6 +4,7 @@
   open Parser
   exception SyntaxError of string
   let paren_depth = ref 0
+  let indents = ref [0]
 }
 
 let space = [' ' '\t']
@@ -25,25 +26,21 @@ rule token = parse
   | '*'       { ASTERISK }
   | '<'       { LT }
   | ':'       { COL }
-  | ';'       { SEMICOL }
   | ','       { COMMA }
   | '='       { EQ }
+  | "=="      { EQEQ }
 
   (* Parentheses *)
   | '('       { incr paren_depth; LPAREN }
   | ')'       { decr paren_depth; RPAREN }
-  | '{'       { LCBRA }
-  | '}'       { RCBRA }
   
   (* reserved names *)
   | "true"    { TRUE }
   | "false"   { FALSE }
   | "while"   { WHILE }
-  | "func"    { FUNC }
-  | "let"     { LET }
-  | "rec"     { REC }
+  | "for"     { FOR }
+  | "def"     { DEF }
   | "return"  { RETURN }
-  | "print"   { PRINT }
 
   (* variable *)
   | alpha alnum*
@@ -54,7 +51,13 @@ rule token = parse
 
   (* indent *)
   | newline space*
-    { Lexing.new_line lexbuf; if !paren_depth > 0 then token lexbuf else INDENT (pred lexbuf.lex_buffer_len) }
+    { Lexing.new_line lexbuf;
+      if !paren_depth > 0 then token lexbuf (* Skip if sandwiched between parentheses *)
+      else
+        let white_space_n = pred lexbuf.lex_buffer_len in
+        
+      else INDENT (pred lexbuf.lex_buffer_len) (* indent *)
+    }
 
   (* spaces *)
   | space+    { token lexbuf }

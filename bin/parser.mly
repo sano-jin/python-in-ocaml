@@ -32,7 +32,6 @@
 %token LET      // "let"
 %token REC      // "rec"
 %token RETURN   // "return"
-%token PRINT    // "print"
 
 // End of file
 %token EOF 
@@ -146,6 +145,10 @@ stmt:
   // f (e1, ..., en)
   | app { Exp $1 } 
 
+  // Assignment
+  | VAR EQ exp SEMICOL
+    { Bind ($1, $3) }
+
   // Return
   | RETURN exp
     { Return $2 }
@@ -158,9 +161,6 @@ stmt:
   | WHILE exp COL
    { While ($2, []) }
 
-  // print e
-  | PRINT exp
-   { Print $2 }    
 ;
     
 // lines

@@ -8,26 +8,27 @@ type exp =
   | Plus of exp * exp  (** e + e *)
   | Times of exp * exp  (** e * e *)
   | Lt of exp * exp  (** e < e *)
-  | Func of string list * stmt  (** func (x, y) {return x + y} *)
-  | RecFunc of string * string list * stmt  (** func f (x, y) {return x + y} *)
-  | App of exp * exp list  (** f(x1, ..., xn) *)
+  | Eq of exp * exp  (** e == e *)
+  | Lambda of string list * stmt list  (** lambda x, y: ... *)
+  | App of exp * exp list  (** f (x1, ..., xn) *)
 
 and stmt =
   | Exp of exp
-  | Assign of string * exp  (** assignment e.g. x := 1 + 2 * y *)
-  | Seq of stmt * stmt  (** sequence e.g. x := 2; y := x + 1 *)
-  | While of exp * stmt list  (** loop e.g. while (1 < x) { x := x + 1 } *)
-  | Skip  (** skip *)
+  | Bind of string * exp  (** bind e.g. x = 1 + 2 *)
+  | While of exp * stmt list  (** loop e.g. while 1 < x: ... *)
+  | If of exp * stmt list  (** if e.g. if 1 < x: ... *)
+  | Else of exp * stmt list  (** else e.g. else: ... *)
+  | Elif of exp * stmt list  (** elif e.g. elif 0 < x: ... *)
+  | Def of string * string list * stmt list  (** def f (x, y): ... *)
   | Return of exp  (** return e *)
-  | Print of exp  (** print e *)
 
 (** value *)
 type value =
   | VoidVal
   | IntVal of int
   | BoolVal of bool
-  | FuncVal of string list * stmt * env  (** closure *)
-  | RecFuncVal of string * string list * stmt * env  (** closure *)
+  | LambdaVal of string list * stmt * env  (** closure *)
+  | DefVal of string * string list * stmt * env  (** recursive closure *)
 
 and env = (string * value ref) list
 (** environment e.g. [("x", 1); ("y", 2)]*)
