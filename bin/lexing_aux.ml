@@ -28,9 +28,9 @@ let rec emit_dedents indent_level =
        最初の行なら無視してそのまま tokenizing を続け，
        それ以外なら delimiter を挿入する（C 言語でのセミコロンに対応）．
      - インデントレベルが上がっていた場合は，
-       補助関数 [emit_dedents] を用いて [DEDENTS n] を返す．
+       補助関数 [emit_dedents] を用いて [TOKENS [DEDENT; ...; DEDENT; DELIMITER]] を返す．
    *)
-let emit_indent indent_level token lexbuf =
+let emit_indent indent_level =
   let current_indent_level = Stack.top indent_level_stack in
   if indent_level > current_indent_level then (
     Stack.push indent_level indent_level_stack;
@@ -38,9 +38,5 @@ let emit_indent indent_level token lexbuf =
   else
     match emit_dedents indent_level with
     | None -> BAD_DEDENT
-    | Some 0 ->
-        if !is_first_line then (
-          is_first_line := false;
-          token lexbuf)
-        else DELIMITER
-    | Some n -> DEDENTS n
+    | Some 0 -> DELIMITER
+    | Some n -> TOKENS (DELIMITER :: (repeat n DEDENT @ [ DELIMITER ]))

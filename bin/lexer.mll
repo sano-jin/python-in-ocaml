@@ -38,7 +38,7 @@ rule token = parse
   | "true"    { TRUE }
   | "false"   { FALSE }
   | "while"   { WHILE }
-  | "lambda"    { LAMBDA }
+  | "lambda"  { LAMBDA }
   | "def"     { DEF }
   | "return"  { RETURN }
 
@@ -86,7 +86,7 @@ and indent = parse
         (* the number of characters from the beginning of the line*)
         pos.pos_cnum - pos.pos_bol
       in
-      emit_indent indent_level token lexbuf
+      emit_indent indent_level
      }
 
 

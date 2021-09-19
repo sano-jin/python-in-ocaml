@@ -26,6 +26,7 @@
 %token DEDENT     
 %token BAD_DEDENT     
 %token <int> DEDENTS	(* One or more DEDENTs (ZERO IS NOT ALLOWED) *)
+%token <token list> TOKENS	(* Zero or more TOKENs (NESTING THIS IS NOT ALLOWED) *)
 
 
 (* reserved names *)
@@ -53,8 +54,8 @@
 
 (* Main part must end with EOF (End Of File) *)
 main:
-  | block EOF
-    { $1 }
+  | DELIMITER? block EOF
+    { $2 }
 ;
 
 (* tuple *)
@@ -139,14 +140,14 @@ exp:
 (* statement *)
 stmt:
   (* f (e1, ..., en) ; *)
-  | app DELIMITER { Exp $1 } 
+  | app { Exp $1 } 
 
   (* Return *)
-  | RETURN exp DELIMITER
+  | RETURN exp
     { Return $2 }
   
   (* Assignment *)
-  | VAR EQ exp DELIMITER
+  | VAR EQ exp
     { Assign ($1, $3) }
 
   (* def f (x1, ..., xn): { block } *)
@@ -154,7 +155,7 @@ stmt:
     { Assign ($2, RecFunc ($2, $3, $5)) }
 
   (* while exp block *)
-  | WHILE exp stmt DELIMITER
+  | WHILE exp stmt
    { While ($2, $3) }
 
   (* Block *)
@@ -165,9 +166,9 @@ stmt:
 (* block *)
 block:       
   (* stmt1 stmt2 ... *)
-  | stmt block
-    { Seq ($1, $2) }
+  | stmt DELIMITER block
+    { Seq ($1, $3) }
     
-  | stmt { $1 }
+  | stmt DELIMITER { $1 }
 ;
 

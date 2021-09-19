@@ -3,24 +3,27 @@
 open Lexing
 open Parser
 
-(** [DEDENTS] を無数の [DEDENT] に展開しながら出力する tokenizer *)
+(** [TOKENS] を無数の [token] に展開しながら出力する tokenizer *)
 let token =
-  let dedents_n = ref 0 in
-  fun lexbuf ->
-    if !dedents_n > 0 then (
-      decr dedents_n;
-      DEDENT)
-    else
-      (* dedents_n = 0 *)
-      match Lexer.token lexbuf with
-      | Parser.DEDENTS n ->
-          dedents_n := pred n;
-          DEDENT
-      | x -> x
+  let tokens = ref [] in
+  let rec helper lexbuf =
+    match !tokens with
+    | [] -> (
+        match Lexer.token lexbuf with
+        | TOKENS ts ->
+            tokens := ts;
+            helper lexbuf
+        | x -> x)
+    | TOKENS _ :: _ -> failwith "nesting TOKENS token is not allowed"
+    | h :: t ->
+        tokens := t;
+        h
+  in
+  helper
 
 (** parse : string -> stmt *)
 let parse_with_error str =
-  let lexbuf = Lexing.from_string @@ "\n" ^ str in
+  let lexbuf = Lexing.from_string @@ "\n" ^ str ^ "\n" in
   try Parser.main token lexbuf with
   | Lexer.SyntaxError msg ->
       prerr_endline msg;
