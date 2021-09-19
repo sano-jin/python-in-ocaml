@@ -3,6 +3,9 @@
 {
   open Parser
   exception SyntaxError of string
+
+  open Lexing_aux
+
 }
 
 let space = [' ' '\t']
@@ -11,7 +14,7 @@ let alpha = ['A'-'Z' 'a'-'z' '_']
 let alnum = digit | alpha | '\''
 let newline = '\r' | '\n' | "\r\n"
 
-
+(* 改行後のスペースを indent で読んだ後に呼ばれる Lexer *)
 rule token = parse
   (* Number *)
   | digit+
@@ -23,24 +26,20 @@ rule token = parse
   | '-'       { MINUS }
   | '*'       { ASTERISK }
   | '<'       { LT }
-  | ';'       { SEMICOL }
+  | ':'       { COL }
   | ','       { COMMA }
-  | ":="      { ASSIGN }
   | '='       { EQ }
 
   (* Parentheses *)
   | '('       { LPAREN }
   | ')'       { RPAREN }
-  | '{'       { LCBRA }
-  | '}'       { RCBRA }
   
   (* reserved names *)
   | "true"    { TRUE }
   | "false"   { FALSE }
   | "while"   { WHILE }
-  | "func"    { FUNC }
-  | "let"     { LET }
-  | "rec"     { REC }
+  | "lambda"    { LAMBDA }
+  | "def"     { DEF }
   | "return"  { RETURN }
 
   (* variable *)
@@ -53,7 +52,8 @@ rule token = parse
   (* spaces *)
   | space+    { token lexbuf }
 
-  | newline  { Lexing.new_line lexbuf; token lexbuf }
+  (* new line. call the [indent] tokenizer *)
+  | newline  { Lexing.new_line lexbuf; indent lexbuf }
 
   (* comments *)
   | '#' [^ '\n']*  { token lexbuf }
@@ -63,9 +63,30 @@ rule token = parse
       let message = Printf.sprintf
         "Unknown token '%s' near line %d (near characters %d-%d)"
         (Lexing.lexeme lexbuf)
-        lexbuf.lex_curr_p.pos_lnum
+        (pred lexbuf.lex_curr_p.pos_lnum)
         (Lexing.lexeme_start lexbuf)
         (Lexing.lexeme_end lexbuf)
       in
       raise @@ SyntaxError message
     }
+
+
+(* 改行があった場合に直後に呼ばれる Lexer *)
+and indent = parse
+  (* blank line *)
+  | space* newline { Lexing.new_line lexbuf; indent lexbuf }
+
+  (* blank line with a comment *)
+  | space* '#' [^ '\n']* newline { Lexing.new_line lexbuf; indent lexbuf }
+
+  (* indent (assuming that the next comming token is not just a space/newline/comment) *)
+  | space*
+    { let indent_level =
+        let pos = lexbuf.lex_curr_p in
+        (* the number of characters from the beginning of the line*)
+        pos.pos_cnum - pos.pos_bol
+      in
+      emit_indent indent_level token lexbuf
+     }
+
+

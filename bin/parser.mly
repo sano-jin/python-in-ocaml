@@ -1,103 +1,100 @@
-// Parser
+(* Parser *)
      
 %{
   open Syntax
 %}
 
-%token <string> VAR  // x, y, abc, ...
-%token <int> INT     // 0, 1, 2, ...
+%token <string> VAR	(* x, y, abc, ... *)
+%token <int> INT	(* 0, 1, 2, ...  *)
 
-// operators
-%token PLUS     // '+'
-%token MINUS    // '-'
-%token ASTERISK // '*'
-%token LT       // '<'
-%token SEMICOL  // ';'
-%token COMMA    // ','
-%token ASSIGN   // ":="
-%token EQ       // "="
+(* operators *)
+%token PLUS		(* '+' *)
+%token MINUS		(* '-' *)
+%token ASTERISK		(* '*' *)
+%token LT		(* '<' *)
+%token COL		(* ':' *)
+%token COMMA		(* ',' *)
+%token EQ		(* '=' *)
+%token DELIMITER	(* '\n' *)
+		       
+(* Parentheses *)
+%token LPAREN		(* '(' *)
+%token RPAREN		(* ')' *)
 
-// Parentheses
-%token LPAREN   // '('
-%token RPAREN   // ')'
-%token LCBRA    // '{'
-%token RCBRA    // '}'
+(* Indentation *)
+%token INDENT     
+%token DEDENT     
+%token BAD_DEDENT     
+%token <int> DEDENTS	(* One or more DEDENTs (ZERO IS NOT ALLOWED) *)
 
-// reserved names
-%token TRUE     // "true"
-%token FALSE    // "false"
-%token WHILE    // "while"
-%token FUNC     // "func"
-%token LET      // "let"
-%token REC      // "rec"
-%token RETURN   // "return"
 
-// End of file
+(* reserved names *)
+%token TRUE		(* "true"   *)
+%token FALSE		(* "false"  *)
+%token WHILE		(* "while"  *)
+%token LAMBDA		(* "lambda" *)
+%token DEF		(* "def"    *)
+%token RETURN		(* "return" *)
+
+(* End of file *)
 %token EOF 
 
-// Operator associativity
-%left COMMA
-%nonassoc LET
-%left SEMICOL
-%nonassoc RETURN	  
-%nonassoc ASSIGN WHILE 
+(* Operator associativity *)
 %nonassoc LT
 %left PLUS
 %left ASTERISK
-%nonassoc UNARY
-%nonassoc FUNC
-%nonassoc VAR
-%nonassoc INT TRUE FALSE LPAREN LCBRA
+
+
 
 %start main
 %type <Syntax.stmt> main
 
 %%
 
-// Main part must end with EOF (End Of File)
+(* Main part must end with EOF (End Of File) *)
 main:
   | block EOF
     { $1 }
 ;
 
-// tuple
+(* tuple *)
 tup_inner:
   | exp { [$1] }
   | exp COMMA tup_inner { $1::$3 }
 ;
 	
 
-// vars inner
+(* vars inner *)
 vars_inner:
   | VAR { [$1] }
   | VAR COMMA vars_inner { $1::$3 }
 ;
 	
-// vars
+(* vars *)
 vars:
   | LPAREN vars_inner RPAREN { $2 }
 ;
 	
-// body of a function
+(* body of a function *)
 body:
-  | LCBRA block RCBRA { $2 }
-  | LCBRA RCBRA       { Skip }
+  | INDENT block DEDENT { $2 }
+  | INDENT DEDENT       { Skip }
 ;		     
 
-// application
+(* application *)
 app:
-  // f (e1, ..., en)
+  (* f (e1, ..., en) *)
   | exp arg_exp { App ($1, $2) }
 ;
 
-// argument
+(* argument *)
 arg_exp:
-  // (e1, ..., en)
+  (* (e1, ..., en) *)
   | LPAREN tup_inner RPAREN { $2 }  
   | LPAREN RPAREN { [] } 
 ;
   
-// expression
+(* expression *)
 exp:
   | VAR
     { Var $1 }
@@ -105,19 +102,19 @@ exp:
   | INT
     { IntLit $1 }
 
-  // Unary minus -i
-  | MINUS INT %prec UNARY
+  (* Unary minus -i *)
+  | MINUS INT
     { IntLit (- $2) }
   
-  // Parentheses
+  (* Parentheses *)
   | LPAREN exp RPAREN
     { $2 }
 
-  // e1 + e2
+  (* e1 + e2 *)
   | exp PLUS exp
     { Plus ($1, $3) }
   
-  // e1 * e2
+  (* e1 * e2 *)
   | exp ASTERISK exp
     { Times ($1, $3) }
   
@@ -127,55 +124,47 @@ exp:
   | FALSE
     { BoolLit false }
   
-  // e1 < e2
+  (* e1 < e2 *)
   | exp LT exp
     { Lt ($1, $3) }    
 
-  // func (x1, ..., xn) { block }
-  | FUNC vars body
-     { Func ($2, $3) }
+  (* lambda x1, ..., xn COL { block } *)
+  | LAMBDA vars_inner COL body
+     { Lambda ($2, $4) }
 
-  // application
+  (* application *)
   | app { $1 }
 ;
 
-// statement
+(* statement *)
 stmt:
-  // f (e1, ..., en) ;
-  | app SEMICOL { Exp $1 } 
+  (* f (e1, ..., en) ; *)
+  | app DELIMITER { Exp $1 } 
 
-  // Return
-  | RETURN exp SEMICOL
+  (* Return *)
+  | RETURN exp DELIMITER
     { Return $2 }
   
-  // Assignment
-  | VAR ASSIGN exp SEMICOL
+  (* Assignment *)
+  | VAR EQ exp DELIMITER
     { Assign ($1, $3) }
 
-  // func f (x1, ..., xn) { block } block
-  | FUNC VAR vars body block
-    { Let ($2, RecFunc ($2, $3, $4), $5) }
+  (* def f (x1, ..., xn): { block } *)
+  | DEF VAR vars COL body
+    { Assign ($2, RecFunc ($2, $3, $5)) }
 
-  // Bind.	
-  | LET VAR EQ exp SEMICOL block
-    { Let ($2, $4, $6) }
-  
-  // // Recursive Bind.	
-  // | LET REC VAR EQ exp SEMICOL block
-  //   { LetRec ($3, $5, $7) }
-  
-  // while exp block
-  | WHILE exp stmt
+  (* while exp block *)
+  | WHILE exp stmt DELIMITER
    { While ($2, $3) }
 
-  // Block
-  | LCBRA block RCBRA
+  (* Block *)
+  | INDENT block DEDENT
    { $2 }
 ;
     
-// block
+(* block *)
 block:       
-  // stmt1 stmt2 ...
+  (* stmt1 stmt2 ... *)
   | stmt block
     { Seq ($1, $2) }
     
