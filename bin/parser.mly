@@ -25,7 +25,6 @@
 %token INDENT     
 %token DEDENT     
 %token BAD_DEDENT     
-%token <int> DEDENTS	(* One or more DEDENTs (ZERO IS NOT ALLOWED) *)
 %token <token list> TOKENS	(* Zero or more TOKENs (NESTING THIS IS NOT ALLOWED) *)
 
 
@@ -54,8 +53,8 @@
 
 (* Main part must end with EOF (End Of File) *)
 main:
-  | DELIMITER? block EOF
-    { $2 }
+  | DELIMITER block EOF { $2 }
+  | INDENT block DEDENT DELIMITER EOF { $2 }
 ;
 
 (* tuple *)
@@ -74,6 +73,7 @@ vars_inner:
 (* vars *)
 vars:
   | LPAREN vars_inner RPAREN { $2 }
+  | LPAREN RPAREN { [] } 
 ;
 	
 
@@ -96,10 +96,12 @@ exp:
   | MINUS INT
     { IntLit (- $2) }
   
-  (* Parentheses *)
-  | LPAREN exp RPAREN
-    { $2 }
-
+  | TRUE
+    { BoolLit true }
+    
+  | FALSE
+    { BoolLit false }
+  
   (* e1 + e2 *)
   | exp PLUS exp
     { Plus ($1, $3) }
@@ -107,12 +109,6 @@ exp:
   (* e1 * e2 *)
   | exp ASTERISK exp
     { Times ($1, $3) }
-  
-  | TRUE
-    { BoolLit true }
-    
-  | FALSE
-    { BoolLit false }
   
   (* e1 < e2 *)
   | exp LT exp
@@ -128,6 +124,10 @@ exp:
   (* application *)
   (* f (e1, ..., en) *)
   | exp arg_exp { App ($1, $2) }
+
+  (* Parentheses *)
+  | LPAREN exp RPAREN
+    { $2 }
 ;
 
 (* statement *)
@@ -140,16 +140,16 @@ stmt:
     { Return $2 }
   
   (* Assignment *)
-  | VAR EQ exp
+  | exp EQ exp
     { Assign ($1, $3) }
 
   (* def f (x1, ..., xn): { block } *)
   | DEF VAR vars COL INDENT block DEDENT
-    { Assign ($2, RecFunc ($2, $3, $6)) }
+    { Assign (Var $2, RecFunc ($2, $3, $6)) }
 
   (* def f (x1, ..., xn): <nothing> *)
   | DEF VAR vars COL
-    { Assign ($2, RecFunc ($2, $3, Skip)) }
+    { Assign (Var $2, RecFunc ($2, $3, Skip)) }
 
   (* while exp block *)
   | WHILE exp COL INDENT block DEDENT
@@ -158,10 +158,6 @@ stmt:
   (* while nothing *)
   | WHILE exp COL 
    { While ($2, Skip) }
-
-  (* Block *)
-  | INDENT block DEDENT
-   { $2 }
 ;
     
 (* block *)

@@ -47,13 +47,14 @@ and eval_stmt env stmt =
   let mzero _ = None in
   match stmt with
   | Exp e -> (mzero @@ eval_exp env e, env)
-  | Assign (var, e) -> (
+  | Assign (Var var, e) -> (
       let v = eval_exp env e in
       match List.assoc_opt var env with
       | None -> (None, (var, ref @@ eval_exp env e) :: env)
       | Some old_ref ->
           old_ref := v;
           (None, env))
+  | Assign (_, _) -> failwith @@ "cannot assign to operator"
   | Seq (s1, s2) -> (
       match eval_stmt env s1 with
       | None, env -> eval_stmt env s2

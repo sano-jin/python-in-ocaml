@@ -14,7 +14,7 @@ type exp =
 
 and stmt =
   | Exp of exp
-  | Assign of string * exp  (** assignment e.g. x := 1 + 2 * y *)
+  | Assign of exp * exp  (** assignment e.g. x := 1 + 2 * y *)
   | Seq of stmt * stmt  (** sequence e.g. x := 2; y := x + 1 *)
   | While of exp * stmt  (** loop e.g. while (1 < x) { x := x + 1 } *)
   | Skip  (** skip *)

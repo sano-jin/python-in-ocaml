@@ -28,7 +28,7 @@ let rec emit_dedents indent_level =
        最初の行なら無視してそのまま tokenizing を続け，
        それ以外なら delimiter を挿入する（C 言語でのセミコロンに対応）．
      - インデントレベルが上がっていた場合は，
-       補助関数 [emit_dedents] を用いて [TOKENS [DEDENT; ...; DEDENT; DELIMITER]] を返す．
+       補助関数 [emit_dedents] を用いて [TOKENS [DEDENT; DELIMITER; ...; DEDENT; DELIMITER]] を返す．
    *)
 let emit_indent indent_level =
   let current_indent_level = Stack.top indent_level_stack in
@@ -39,4 +39,5 @@ let emit_indent indent_level =
     match emit_dedents indent_level with
     | None -> BAD_DEDENT
     | Some 0 -> DELIMITER
-    | Some n -> TOKENS (DELIMITER :: (repeat n DEDENT @ [ DELIMITER ]))
+    | Some n ->
+        TOKENS (DELIMITER :: List.concat (repeat n [ DEDENT; DELIMITER ]))
