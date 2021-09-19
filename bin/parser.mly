@@ -76,17 +76,6 @@ vars:
   | LPAREN vars_inner RPAREN { $2 }
 ;
 	
-(* body of a function *)
-body:
-  | INDENT block DEDENT { $2 }
-  | INDENT DEDENT       { Skip }
-;		     
-
-(* application *)
-app:
-  (* f (e1, ..., en) *)
-  | exp arg_exp { App ($1, $2) }
-;
 
 (* argument *)
 arg_exp:
@@ -130,17 +119,21 @@ exp:
     { Lt ($1, $3) }    
 
   (* lambda x1, ..., xn COL { block } *)
-  | LAMBDA vars_inner COL body
-     { Lambda ($2, $4) }
+  | LAMBDA vars_inner COL INDENT block DEDENT
+     { Lambda ($2, $5) }
+
+  | LAMBDA vars_inner COL 
+     { Lambda ($2, Skip) }
 
   (* application *)
-  | app { $1 }
+  (* f (e1, ..., en) *)
+  | exp arg_exp { App ($1, $2) }
 ;
 
 (* statement *)
 stmt:
   (* f (e1, ..., en) ; *)
-  | app { Exp $1 } 
+  | exp { Exp $1 } 
 
   (* Return *)
   | RETURN exp
@@ -151,12 +144,20 @@ stmt:
     { Assign ($1, $3) }
 
   (* def f (x1, ..., xn): { block } *)
-  | DEF VAR vars COL body
-    { Assign ($2, RecFunc ($2, $3, $5)) }
+  | DEF VAR vars COL INDENT block DEDENT
+    { Assign ($2, RecFunc ($2, $3, $6)) }
+
+  (* def f (x1, ..., xn): <nothing> *)
+  | DEF VAR vars COL
+    { Assign ($2, RecFunc ($2, $3, Skip)) }
 
   (* while exp block *)
-  | WHILE exp stmt
-   { While ($2, $3) }
+  | WHILE exp COL INDENT block DEDENT
+   { While ($2, $5) }
+
+  (* while nothing *)
+  | WHILE exp COL 
+   { While ($2, Skip) }
 
   (* Block *)
   | INDENT block DEDENT
