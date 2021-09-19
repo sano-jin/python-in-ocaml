@@ -18,6 +18,7 @@ and stmt =
   | Seq of stmt * stmt  (** sequence e.g. x := 2; y := x + 1 *)
   | While of exp * stmt  (** loop e.g. while (1 < x) { x := x + 1 } *)
   | Skip  (** skip *)
+  | NonLocal of string
   | Return of exp  (** return e *)
 
 (** value *)
@@ -28,7 +29,7 @@ type value =
   | LambdaVal of string list * stmt * env  (** closure *)
   | RecFuncVal of string * string list * stmt * env  (** closure *)
 
-and env = (string * value ref) list
+and env = (string * value ref) list ref list
 (** environment e.g. [("x", 1); ("y", 2)]*)
 
 let string_of_value = function

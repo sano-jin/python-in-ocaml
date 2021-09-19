@@ -1,6 +1,7 @@
 (* eval.ml *)
 
 open Syntax
+open Util
 
 (** some helper functions *)
 let extract_int = function
@@ -8,61 +9,79 @@ let extract_int = function
   | _ -> failwith @@ "type error. expected int"
 
 (** The evaluator *)
-let rec eval_exp env exp =
-  let eval_binop f e1 e2 = f (eval_exp env e1) (eval_exp env e2) in
+let rec eval_exp envs exp =
+  let eval_binop f e1 e2 = f (eval_exp envs e1) (eval_exp envs e2) in
   let eval_binop_int f =
     eval_binop (fun v1 v2 -> f (extract_int v1) (extract_int v2))
   in
-  let maybe default = function Some v -> v | None -> default in
   match exp with
-  | Var var -> !(List.assoc var env)
+  | Var var -> (
+      match one_of (List.assoc_opt var <. ( ! )) envs with
+      | Some v -> !v
+      | None -> failwith @@ "unbound variable " ^ var)
   | IntLit num -> IntVal num
   | BoolLit bool -> BoolVal bool
   | Plus (e1, e2) -> IntVal (eval_binop_int ( + ) e1 e2)
   | Times (e1, e2) -> IntVal (eval_binop_int ( * ) e1 e2)
   | Lt (e1, e2) -> BoolVal (eval_binop_int ( < ) e1 e2)
-  | Lambda (args, body) -> LambdaVal (args, body, env)
-  | RecFunc (f, args, body) -> RecFuncVal (f, args, body, env)
+  | Lambda (args, body) -> LambdaVal (args, body, envs)
+  | RecFunc (f, args, body) -> RecFuncVal (f, args, body, envs)
   | App (f, args) -> (
-      let argVals = List.map (eval_exp env) args in
+      let argVals = List.map (eval_exp envs) args in
       if f = Var "print" then (
         print_endline @@ String.concat ", " @@ List.map string_of_value argVals;
         VoidVal)
       else
         let argVals = List.map ref argVals in
-        match eval_exp env f with
-        | LambdaVal (vars, body, env') ->
-            maybe VoidVal @@ fst
-            @@ eval_stmt (List.combine vars argVals @ env') body
-        | RecFuncVal (f, vars, body, env') ->
-            maybe VoidVal @@ fst
-            @@ eval_stmt
-                 ((f, ref @@ RecFuncVal (f, vars, body, env'))
-                  :: List.combine vars argVals
-                 @ env')
-                 body
+        let eval_app envs body =
+          Either.fold ~left:(const VoidVal) ~right:id
+          @@ eval_stmt ([], envs) body
+        in
+        match eval_exp envs f with
+        | LambdaVal (vars, body, envs') ->
+            eval_app ((ref @@ List.combine vars argVals) :: envs') body
+        | RecFuncVal (f, vars, body, envs') ->
+            eval_app
+              (ref
+                 ((f, ref (RecFuncVal (f, vars, body, envs')))
+                 :: List.combine vars argVals)
+              :: envs')
+              body
         | _ -> failwith @@ "expected function type")
 
-and eval_stmt env stmt =
-  let mzero _ = None in
+and eval_stmt (nonlocals, envs) stmt =
+  let proceed = Either.Left nonlocals in
+  let assign var v envs =
+    (match one_of (List.assoc_opt var <. ( ! )) envs with
+    | None ->
+        let env = List.hd envs in
+        env := (var, ref v) :: !env
+    | Some old_ref -> old_ref := v);
+    proceed
+  in
   match stmt with
-  | Exp e -> mzero @@ eval_exp env e
   | Assign (Var var, e) -> (
-      let v = eval_exp env e in
-      match List.assoc_opt var env with
-      | None -> (None, (var, ref @@ eval_exp env e) :: env)
-      | Some old_ref ->
-          old_ref := v;
-          (None, env))
+      let v = eval_exp envs e in
+      match envs with
+      | [] -> failwith "there should be at least the global environment"
+      | [ _ ] -> assign var v envs
+      | env :: _ ->
+          if List.mem var nonlocals then assign var v @@ dropLast1 envs
+          else assign var v [ env ])
   | Assign (_, _) -> failwith @@ "cannot assign to operator"
+  | NonLocal var -> Either.Left (var :: nonlocals)
+  | Exp e ->
+      ignore @@ eval_exp envs e;
+      proceed
   | Seq (s1, s2) -> (
-      match eval_stmt env s1 with
-      | None, env -> eval_stmt env s2
-      | some, env -> (some, env))
+      match eval_stmt (nonlocals, envs) s1 with
+      | Either.Left nonlocals -> eval_stmt (nonlocals, envs) s2
+      | otherwise -> otherwise)
   | While (cond, stmt) -> (
-      match eval_exp env cond with
-      | BoolVal true -> eval_stmt env @@ Seq (stmt, While (cond, stmt))
-      | BoolVal false -> (None, env)
+      match eval_exp envs cond with
+      | BoolVal true ->
+          eval_stmt (nonlocals, envs) @@ Seq (stmt, While (cond, stmt))
+      | BoolVal false -> proceed
       | _ -> failwith @@ "expected boolean value")
-  | Skip -> (None, env)
-  | Return e -> (Some (eval_exp env e), env)
+  | Skip -> proceed
+  | Return e -> Either.Right (eval_exp envs e)

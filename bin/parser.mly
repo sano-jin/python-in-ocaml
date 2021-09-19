@@ -34,6 +34,7 @@
 %token WHILE		(* "while"  *)
 %token LAMBDA		(* "lambda" *)
 %token DEF		(* "def"    *)
+%token NONLOCAL		(* "nonlocal"    *)
 %token RETURN		(* "return" *)
 
 (* End of file *)
@@ -158,6 +159,8 @@ stmt:
   (* while nothing *)
   | WHILE exp COL 
    { While ($2, Skip) }
+
+  | NONLOCAL VAR { NonLocal $2 }
 ;
     
 (* block *)

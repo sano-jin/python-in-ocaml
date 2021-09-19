@@ -13,4 +13,7 @@ let preprocess_newlines_in_exp =
   implode <. snd <. List.fold_left_map preprocess_newline_in_exp 0 <. explode
 
 let () =
-  ignore @@ eval_stmt [] @@ Parsing.parse_with_error @@ read_file Sys.argv.(1)
+  ignore
+  @@ eval_stmt ([], [ ref [] ])
+  @@ Parsing.parse_with_error
+  @@ read_file Sys.argv.(1)

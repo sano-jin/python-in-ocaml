@@ -40,6 +40,7 @@ rule token = parse
   | "while"   { WHILE }
   | "lambda"  { LAMBDA }
   | "def"     { DEF }
+  | "nonlocal"     { NONLOCAL }
   | "return"  { RETURN }
 
   (* variable *)
