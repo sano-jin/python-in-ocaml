@@ -46,7 +46,7 @@ let rec eval_exp env exp =
 and eval_stmt env stmt =
   let mzero _ = None in
   match stmt with
-  | Exp e -> (mzero @@ eval_exp env e, env)
+  | Exp e -> mzero @@ eval_exp env e
   | Assign (Var var, e) -> (
       let v = eval_exp env e in
       match List.assoc_opt var env with

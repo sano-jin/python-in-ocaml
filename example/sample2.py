@@ -4,11 +4,11 @@ X = 4
 Y = 1
 Z = 0
 def f (x, y):
-  return lambda z:
+  def hoge(z):
     Z = 2
     return x + y * z
     Z = 5 # Never reaches here
-  
+  return hoge
 
 
 while Z < X:
