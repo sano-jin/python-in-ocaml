@@ -26,25 +26,35 @@ let rec eval_exp envs exp =
   | Lt (e1, e2) -> BoolVal (eval_binop_int ( < ) e1 e2)
   | Lambda (args, body) -> LambdaVal (args, body, envs)
   | App (f, args) -> (
-      let argVals = List.map (eval_exp envs) args in
-      if f = Var "print" then (
-        print_endline @@ String.concat ", " @@ List.map string_of_value argVals;
-        VoidVal)
-      else
-        let argVals = List.map ref argVals in
-        let eval_app envs body =
-          Either.fold ~left:(const VoidVal) ~right:id
-          @@ eval_stmt ([], envs) body
-        in
-        match eval_exp envs f with
-        | LambdaVal (vars, body, envs') ->
-            eval_app ((ref @@ List.combine vars argVals) :: envs') body
-        | _ -> failwith @@ "expected function type")
+      match (f, List.map (eval_exp envs) args) with
+      | Var "object", [] -> ObjectVal (ref [])
+      | Var "print", argVals ->
+          print_endline @@ String.concat ", "
+          @@ List.map string_of_value argVals;
+          VoidVal
+      | _, argVals -> (
+          match eval_exp envs f with
+          | LambdaVal (vars, body, envs') ->
+              let argVals = List.map ref argVals in
+              let new_env = ref @@ List.combine vars argVals in
+              Either.fold ~left:(const VoidVal) ~right:id
+              @@ eval_stmt ([], new_env :: envs') body
+          | _ -> failwith @@ "expected function type"))
+  | Access (obj, prop) -> (
+      match eval_exp envs obj with
+      | ObjectVal dict -> !(List.assoc prop !dict)
+      | _ -> failwith @@ "Cannot access to a non-object with a dot notation")
 
 and eval_stmt (nonlocals, envs) stmt =
   let proceed = Either.Left nonlocals in
-  let assign var v envs =
-    (match one_of (List.assoc_opt var <. ( ! )) envs with
+  let assign envs var v =
+    let assignable_envs =
+      match envs with
+      | [] -> failwith "there should be at least the global environment"
+      | [ _ ] -> envs
+      | env :: _ -> if List.mem var nonlocals then dropLast1 envs else [ env ]
+    in
+    (match one_of (List.assoc_opt var <. ( ! )) assignable_envs with
     | None ->
         let env = List.hd envs in
         env := (var, ref v) :: !env
@@ -52,14 +62,17 @@ and eval_stmt (nonlocals, envs) stmt =
     proceed
   in
   match stmt with
-  | Assign (Var var, e) -> (
-      let v = eval_exp envs e in
-      match envs with
-      | [] -> failwith "there should be at least the global environment"
-      | [ _ ] -> assign var v envs
-      | env :: _ ->
-          if List.mem var nonlocals then assign var v @@ dropLast1 envs
-          else assign var v [ env ])
+  | Assign (Var var, e) -> assign envs var @@ eval_exp envs e
+  | Assign (Access (obj, prop), exp) -> (
+      let obj = eval_exp envs obj in
+      let value = eval_exp envs exp in
+      match obj with
+      | ObjectVal dict ->
+          (match List.assoc_opt prop !dict with
+          | Some prop -> prop := value
+          | None -> dict := (prop, ref value) :: !dict);
+          proceed
+      | _ -> failwith @@ "Cannot access to a non-object with a dot notation")
   | Assign (_, _) -> failwith @@ "cannot assign to operator"
   | NonLocal var -> Either.Left (var :: nonlocals)
   | Exp e ->

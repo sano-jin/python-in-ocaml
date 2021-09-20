@@ -10,6 +10,7 @@ type exp =
   | Lt of exp * exp  (** e < e *)
   | Lambda of string list * stmt  (** lambda x, y : {return x + y} *)
   | App of exp * exp list  (** f(x1, ..., xn) *)
+  | Access of exp * string  (** exp.exp *)
 
 and stmt =
   | Exp of exp
@@ -26,13 +27,19 @@ type value =
   | IntVal of int
   | BoolVal of bool
   | LambdaVal of string list * stmt * env  (** closure *)
+  | ObjectVal of (string * value ref) list ref
 
 and env = (string * value ref) list ref list
 (** environment e.g. [("x", 1); ("y", 2)]*)
 
-let string_of_value = function
+let rec string_of_value = function
   | VoidVal -> "void"
   | IntVal i -> string_of_int i
   | BoolVal true -> "true"
   | BoolVal false -> "false"
   | LambdaVal _ -> "lambda ..."
+  | ObjectVal dict ->
+      let string_of_binding (var, value) =
+        var ^ " : " ^ string_of_value !value
+      in
+      "[" ^ String.concat ", " (List.map string_of_binding !dict) ^ "]"

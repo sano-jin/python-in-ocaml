@@ -13,6 +13,7 @@
 %token ASTERISK		(* '*' *)
 %token LT		(* '<' *)
 %token COL		(* ':' *)
+%token DOT		(* '.' *)
 %token COMMA		(* ',' *)
 %token EQ		(* '=' *)
 %token DELIMITER	(* '\n' *)
@@ -44,7 +45,7 @@
 %nonassoc LT
 %left PLUS
 %left ASTERISK
-
+%left DOT
 
 
 %start main
@@ -125,6 +126,10 @@ exp:
   (* application *)
   (* f (e1, ..., en) *)
   | exp arg_exp { App ($1, $2) }
+
+  (* dot notation *)
+  (* exp.var *)
+  | exp DOT VAR { Access ($1, $3) }
 
   (* Parentheses *)
   | LPAREN exp RPAREN

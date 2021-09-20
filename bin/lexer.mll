@@ -27,6 +27,7 @@ rule token = parse
   | '*'       { ASTERISK }
   | '<'       { LT }
   | ':'       { COL }
+  | '.'       { DOT }
   | ','       { COMMA }
   | '='       { EQ }
 
