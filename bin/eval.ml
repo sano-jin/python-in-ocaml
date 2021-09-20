@@ -130,13 +130,24 @@ and eval_stmt (nonlocals, envs) stmt =
       | ObjectVal dict ->
           (match List.assoc_opt prop !dict with
           | Some prop -> prop := value
-          | None -> (
+          | None ->
+              (*
               match !(List.assoc "<class_fields>" !dict) with
               | ObjectVal class_fields -> (
                   match List.assoc_opt prop !class_fields with
                   | Some prop -> prop := value
                   | None -> dict := (prop, ref value) :: !dict)
-              | _ -> failwith @@ "<class_fields> is expected to be an object"));
+              | _ -> failwith @@ "<class_fields> is expected to be an object");
+          *)
+              dict := (prop, ref value) :: !dict);
+          proceed
+      | LambdaVal (_, _, variables_ref :: _) ->
+          (match !(List.assoc "<class_fields>" !variables_ref) with
+          | ObjectVal class_fields -> (
+              match List.assoc_opt prop !class_fields with
+              | Some prop -> prop := value
+              | None -> class_fields := (prop, ref value) :: !class_fields)
+          | _ -> failwith @@ "<class_fields> is expected to be an object");
           proceed
       | _ -> failwith @@ "Cannot access to a non-object with a dot notation")
   | Assign (_, _) -> failwith @@ "cannot assign to operator"

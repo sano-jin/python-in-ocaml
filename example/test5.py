@@ -15,6 +15,33 @@ print(c2.static_elem, c2.object_elem)
 
 # Nothing new so far ...
 
+# # Let's try changing the static element
+# MyClass.static_elem = 999
+# 
+# print(c1.static_elem, c1.object_elem)
+# # ---> 999 456
+# print(c2.static_elem, c2.object_elem)
+# # ---> 999 456
+# 
+# # Now, let's try changing the object element
+# c1.object_elem = 888
+# 
+# print(c1.static_elem, c1.object_elem)
+# # ---> 999 888
+# print(c2.static_elem, c2.object_elem)
+# # ---> 999 456
+# 
+# 
+# 
+# # Now, let's try changing the object element
+c1.static_elem = 111
+
+print(c1.static_elem, c1.object_elem)
+# ---> 999 888
+print(c2.static_elem, c2.object_elem)
+# ---> 999 456
+
+
 # Let's try changing the static element
 MyClass.static_elem = 999
 
@@ -23,20 +50,6 @@ print(c1.static_elem, c1.object_elem)
 print(c2.static_elem, c2.object_elem)
 # ---> 999 456
 
-# Now, let's try changing the object element
-c1.object_elem = 888
+print(c1)
+print(c2)
 
-print(c1.static_elem, c1.object_elem)
-# ---> 999 888
-print(c2.static_elem, c2.object_elem)
-# ---> 999 456
-
-
-
-# Now, let's try changing the object element
-c1.static_elem = 111
-
-print(c1.static_elem, c1.object_elem)
-# ---> 999 888
-print(c2.static_elem, c2.object_elem)
-# ---> 999 456
