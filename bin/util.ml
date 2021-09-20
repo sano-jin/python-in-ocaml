@@ -92,3 +92,5 @@ let rec dropLast1 = function
   | [] -> failwith "cannot drop element from an empty list"
   | [ _ ] -> []
   | h :: t -> h :: dropLast1 t
+
+let update_ref f r = r := f !r

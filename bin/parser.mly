@@ -5,6 +5,7 @@
 %}
 
 %token <string> VAR	(* x, y, abc, ... *)
+%token <string> STRING	(* 'str', ... *)
 %token <int> INT	(* 0, 1, 2, ...  *)
 
 (* operators *)
@@ -35,6 +36,7 @@
 %token WHILE		(* "while"  *)
 %token LAMBDA		(* "lambda" *)
 %token DEF		(* "def"    *)
+%token CLASS		(* "class"  *)
 %token NONLOCAL		(* "nonlocal"    *)
 %token RETURN		(* "return" *)
 
@@ -104,6 +106,9 @@ exp:
   | FALSE
     { BoolLit false }
   
+  | STRING
+    { StringLit $1 }
+  
   (* e1 + e2 *)
   | exp PLUS exp
     { Plus ($1, $3) }
@@ -156,6 +161,14 @@ stmt:
   (* def f (x1, ..., xn): <nothing> *)
   | DEF VAR vars COL
     { Assign (Var $2, Lambda ($3, Skip)) }
+
+  (* class MyClass: { block } *)
+  | CLASS VAR COL INDENT block DEDENT
+    { Assign (Var $2, Class ($2, $5)) }
+
+  (* class MyClass: <nothing> *)
+  | CLASS VAR COL 
+    { Assign (Var $2, Class ($2, Skip)) }
 
   (* while exp block *)
   | WHILE exp COL INDENT block DEDENT

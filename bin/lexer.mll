@@ -41,6 +41,7 @@ rule token = parse
   | "while"   { WHILE }
   | "lambda"  { LAMBDA }
   | "def"     { DEF }
+  | "class"     { CLASS }
   | "nonlocal"     { NONLOCAL }
   | "return"  { RETURN }
 
@@ -59,6 +60,10 @@ rule token = parse
 
   (* comments *)
   | '#' [^ '\n']*  { token lexbuf }
+
+  (* string *)
+  | ''' [^ '\'']* '\''
+    { STRING (Lexing.lexeme lexbuf) }
 
   | _
     {

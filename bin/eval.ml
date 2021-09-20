@@ -21,6 +21,7 @@ let rec eval_exp envs exp =
       | None -> failwith @@ "unbound variable " ^ var)
   | IntLit num -> IntVal num
   | BoolLit bool -> BoolVal bool
+  | StringLit str -> StringVal str
   | Plus (e1, e2) -> IntVal (eval_binop_int ( + ) e1 e2)
   | Times (e1, e2) -> IntVal (eval_binop_int ( * ) e1 e2)
   | Lt (e1, e2) -> BoolVal (eval_binop_int ( < ) e1 e2)
@@ -28,6 +29,8 @@ let rec eval_exp envs exp =
   | App (f, args) -> (
       match (f, List.map (eval_exp envs) args) with
       | Var "object", [] -> ObjectVal (ref [])
+      | Var "copy", [ ObjectVal dict ] ->
+          ObjectVal (ref @@ List.map (second (ref <. ( ! ))) !dict)
       | Var "print", argVals ->
           print_endline @@ String.concat ", "
           @@ List.map string_of_value argVals;
@@ -44,6 +47,41 @@ let rec eval_exp envs exp =
       match eval_exp envs obj with
       | ObjectVal dict -> !(List.assoc prop !dict)
       | _ -> failwith @@ "Cannot access to a non-object with a dot notation")
+  | Class (name, body) -> (
+      let env = ref [] in
+      env :=
+        [
+          ("__name__", ref @@ StringVal name);
+          ("__init__", ref @@ LambdaVal ([], Skip, env :: envs));
+        ];
+      match eval_stmt ([], env :: envs) body with
+      | Either.Right _ -> failwith @@ "cannot return in class definition"
+      | Either.Left _ -> (
+          let self = ObjectVal env in
+          let apply_self = function
+            | LambdaVal (self_var :: vars, body, envs) ->
+                let env = List.hd envs in
+                LambdaVal
+                  (vars, body, ref ((self_var, ref self) :: !env) :: envs)
+            | other -> other
+          in
+          List.iter (update_ref apply_self <. snd) !env;
+          match !(List.assoc "__init__" !env) with
+          | LambdaVal (vars, body, envs) ->
+              let self_var = fst @@ List.hd @@ !(List.hd envs) in
+              LambdaVal
+                ( vars,
+                  Seq
+                    ( Seq
+                        ( Seq
+                            ( NonLocal self_var,
+                              Assign
+                                ( Var self_var,
+                                  App (Var "copy", [ Var self_var ]) ) ),
+                          body ),
+                      Return (Var self_var) ),
+                  envs )
+          | _ -> failwith @@ "__init__ is expected to be a function type"))
 
 and eval_stmt (nonlocals, envs) stmt =
   let proceed = Either.Left nonlocals in

@@ -5,12 +5,14 @@ type exp =
   | Var of string  (** variable e.g. x *)
   | IntLit of int  (** integer literal e.g. 17 *)
   | BoolLit of bool  (** boolean literal e.g. true, false *)
+  | StringLit of string  (** string literal e.g. 'dog' *)
   | Plus of exp * exp  (** e + e *)
   | Times of exp * exp  (** e * e *)
   | Lt of exp * exp  (** e < e *)
   | Lambda of string list * stmt  (** lambda x, y : {return x + y} *)
   | App of exp * exp list  (** f(x1, ..., xn) *)
   | Access of exp * string  (** exp.exp *)
+  | Class of string * stmt  (** class  *)
 
 and stmt =
   | Exp of exp
@@ -26,6 +28,7 @@ type value =
   | VoidVal
   | IntVal of int
   | BoolVal of bool
+  | StringVal of string
   | LambdaVal of string list * stmt * env  (** closure *)
   | ObjectVal of (string * value ref) list ref
 
@@ -37,9 +40,11 @@ let rec string_of_value = function
   | IntVal i -> string_of_int i
   | BoolVal true -> "true"
   | BoolVal false -> "false"
+  | StringVal str -> str
   | LambdaVal _ -> "lambda ..."
-  | ObjectVal dict ->
+  | ObjectVal dict as self ->
       let string_of_binding (var, value) =
-        var ^ " : " ^ string_of_value !value
+        var ^ " : "
+        ^ if !value == self then "__self__" else string_of_value !value
       in
       "[" ^ String.concat ", " (List.map string_of_binding !dict) ^ "]"
