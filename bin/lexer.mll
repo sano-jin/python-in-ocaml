@@ -63,7 +63,9 @@ rule token = parse
 
   (* string *)
   | ''' [^ '\'']* '\''
-    { STRING (Lexing.lexeme lexbuf) }
+    { let str = Lexing.lexeme lexbuf in
+      STRING (String.sub str 1 @@ String.length str - 2)
+    }
 
   | _
     {

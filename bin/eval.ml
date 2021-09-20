@@ -28,12 +28,11 @@ let rec eval_exp envs exp =
   | Lambda (args, body) -> LambdaVal (args, body, envs)
   | App (f, args) -> (
       match (f, List.map (eval_exp envs) args) with
-      | Var "object", [] -> ObjectVal (ref [])
+      | Var "object", [] -> ObjectVal (ref [ ("<class_fields>", ref VoidVal) ])
       | Var "copy", [ ObjectVal dict ] ->
           ObjectVal (ref @@ List.map (second (ref <. ( ! ))) !dict)
       | Var "print", argVals ->
-          print_endline @@ String.concat ", "
-          @@ List.map string_of_value argVals;
+          print_endline @@ String.concat " " @@ List.map string_of_value argVals;
           VoidVal
       | _, argVals -> (
           match eval_exp envs f with
@@ -45,7 +44,13 @@ let rec eval_exp envs exp =
           | _ -> failwith @@ "expected function type"))
   | Access (obj, prop) -> (
       match eval_exp envs obj with
-      | ObjectVal dict -> !(List.assoc prop !dict)
+      | ObjectVal dict -> (
+          match List.assoc_opt prop !dict with
+          | Some prop_ref -> !prop_ref
+          | None -> (
+              match !(List.assoc "<class_fields>" !dict) with
+              | ObjectVal class_fields -> !(List.assoc prop !class_fields)
+              | _ -> failwith @@ "<class_fields> is expected to be an object"))
       | _ -> failwith @@ "Cannot access to a non-object with a dot notation")
   | Class (name, body) -> (
       let env = ref [] in
@@ -56,32 +61,49 @@ let rec eval_exp envs exp =
         ];
       match eval_stmt ([], env :: envs) body with
       | Either.Right _ -> failwith @@ "cannot return in class definition"
-      | Either.Left _ -> (
-          let self = ObjectVal env in
-          let apply_self = function
-            | LambdaVal (self_var :: vars, body, envs) ->
-                let env = List.hd envs in
-                LambdaVal
-                  (vars, body, ref ((self_var, ref self) :: !env) :: envs)
-            | other -> other
+      | Either.Left _ ->
+          let init_vars =
+            match !(List.assoc "__init__" !env) with
+            | LambdaVal (_ :: vars, _, _) -> vars
+            | LambdaVal ([], _, _) -> []
+            | _ -> failwith "__init__ should be function type"
           in
-          List.iter (update_ref apply_self <. snd) !env;
-          match !(List.assoc "__init__" !env) with
-          | LambdaVal (vars, body, envs) ->
-              let self_var = fst @@ List.hd @@ !(List.hd envs) in
-              LambdaVal
-                ( vars,
-                  Seq
-                    ( Seq
-                        ( Seq
-                            ( NonLocal self_var,
-                              Assign
-                                ( Var self_var,
-                                  App (Var "copy", [ Var self_var ]) ) ),
-                          body ),
-                      Return (Var self_var) ),
-                  envs )
-          | _ -> failwith @@ "__init__ is expected to be a function type"))
+          let classify_methods (var, value) =
+            match !value with
+            | LambdaVal (self_var :: vars, body, _) ->
+                Either.Left
+                  (var, Lambda ([ self_var ], Return (Lambda (vars, body))))
+            | LambdaVal ([], body, _) ->
+                Either.Left (var, Lambda ([ "_" ], Return (Lambda ([], body))))
+            | _ -> Either.Right (var, value)
+          in
+          let seq_of_list =
+            List.fold_left (fun acc stmt -> Seq (acc, stmt)) Skip
+          in
+          let methods, variables = List.partition_map classify_methods !env in
+          let method_binding_stmt_of (var, lambda) =
+            Assign (Access (Var "self", var), App (lambda, [ Var "self" ]))
+          in
+          let stmts =
+            [
+              Assign (Var "self", App (Var "object", []));
+              Assign
+                (Access (Var "self", "<class_fields>"), Var "<class_fields>");
+            ]
+            @ List.map method_binding_stmt_of methods
+            @ [
+                Exp
+                  (App
+                     ( Access (Var "self", "__init__"),
+                       List.map (fun var -> Var var) init_vars ));
+                Return (Var "self");
+              ]
+          in
+          LambdaVal
+            ( init_vars,
+              seq_of_list stmts,
+              ref [ ("<class_fields>", ref (ObjectVal (ref variables))) ]
+              :: envs ))
 
 and eval_stmt (nonlocals, envs) stmt =
   let proceed = Either.Left nonlocals in
@@ -108,7 +130,13 @@ and eval_stmt (nonlocals, envs) stmt =
       | ObjectVal dict ->
           (match List.assoc_opt prop !dict with
           | Some prop -> prop := value
-          | None -> dict := (prop, ref value) :: !dict);
+          | None -> (
+              match !(List.assoc "<class_fields>" !dict) with
+              | ObjectVal class_fields -> (
+                  match List.assoc_opt prop !class_fields with
+                  | Some prop -> prop := value
+                  | None -> dict := (prop, ref value) :: !dict)
+              | _ -> failwith @@ "<class_fields> is expected to be an object"));
           proceed
       | _ -> failwith @@ "Cannot access to a non-object with a dot notation")
   | Assign (_, _) -> failwith @@ "cannot assign to operator"
