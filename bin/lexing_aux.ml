@@ -10,8 +10,6 @@ let indent_level_stack =
   Stack.push 0 stack;
   stack
 
-let is_first_line = ref true
-
 (** インデントレベルが上がった場合に，何段階上がったかを Option 型で取得する．
       マッチするインデントレベルが存在していなかった場合は [None] を返す．
   *)
