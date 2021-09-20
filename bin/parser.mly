@@ -13,6 +13,7 @@
 %token MINUS		(* '-' *)
 %token ASTERISK		(* '*' *)
 %token LT		(* '<' *)
+%token GT		(* '>' *)
 %token COL		(* ':' *)
 %token DOT		(* '.' *)
 %token COMMA		(* ',' *)
@@ -34,6 +35,7 @@
 %token TRUE		(* "true"   *)
 %token FALSE		(* "false"  *)
 %token WHILE		(* "while"  *)
+%token IF		(* "if"  *)
 %token LAMBDA		(* "lambda" *)
 %token DEF		(* "def"    *)
 %token CLASS		(* "class"  *)
@@ -44,7 +46,7 @@
 %token EOF 
 
 (* Operator associativity *)
-%nonassoc LT
+%nonassoc LT GT
 %left PLUS
 %left ASTERISK
 %left DOT
@@ -120,6 +122,10 @@ exp:
   (* e1 < e2 *)
   | exp LT exp
     { Lt ($1, $3) }    
+  
+  (* e1 > e2 *)
+  | exp GT exp
+    { Gt ($1, $3) }    
 
   (* lambda x1, ..., xn COL { block } *)
   | LAMBDA vars_inner COL INDENT block DEDENT
@@ -177,6 +183,14 @@ stmt:
   (* while nothing *)
   | WHILE exp COL 
    { While ($2, Skip) }
+
+  (* if exp block *)
+  | IF exp COL INDENT block DEDENT
+   { If ($2, $5) }
+
+  (* if nothing *)
+  | IF exp COL 
+   { If ($2, Skip) }
 
   | NONLOCAL VAR { NonLocal $2 }
 ;

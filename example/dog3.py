@@ -19,7 +19,7 @@ e.kind = 'hige'             # shared by all dogs
 d.name = 'hoge'             # unique to e
 
 print(d.kind, e.kind)       # shared by all dogs
-# ---> 'hige', 'hige'
+# ---> 'canine', 'hige'
 print(d.name, e.name)       # unique to d and e
 # ---> 'hoge', 'Buddy'
 

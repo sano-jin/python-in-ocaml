@@ -26,6 +26,7 @@ rule token = parse
   | '-'       { MINUS }
   | '*'       { ASTERISK }
   | '<'       { LT }
+  | '>'       { GT }
   | ':'       { COL }
   | '.'       { DOT }
   | ','       { COMMA }
@@ -39,6 +40,7 @@ rule token = parse
   | "true"    { TRUE }
   | "false"   { FALSE }
   | "while"   { WHILE }
+  | "if"   { IF }
   | "lambda"  { LAMBDA }
   | "def"     { DEF }
   | "class"     { CLASS }

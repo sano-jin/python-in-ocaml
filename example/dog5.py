@@ -1,0 +1,29 @@
+class Dog:
+    kind = 'canine'
+    
+    def __init__(self, name):
+        self.name = name
+
+    def bark(self):
+        print(self.name)
+        
+    def bark2(_):
+        print('hoge')
+        
+d = Dog('Fido')
+e = Dog('Buddy')
+
+print(e)
+print(d)
+
+d.bark()
+# ---> 'hoge'
+e.bark()
+# ---> 'Buddy'
+
+e.bark2()
+# ---> 'hoge'
+
+
+print(e.__class__.__name__)
+# ---> 'hoge'

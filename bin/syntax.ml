@@ -9,6 +9,7 @@ type exp =
   | Plus of exp * exp  (** e + e *)
   | Times of exp * exp  (** e * e *)
   | Lt of exp * exp  (** e < e *)
+  | Gt of exp * exp  (** e > e *)
   | Lambda of string list * stmt  (** lambda x, y : {return x + y} *)
   | App of exp * exp list  (** f(x1, ..., xn) *)
   | Access of exp * string  (** exp.exp *)
@@ -19,6 +20,7 @@ and stmt =
   | Assign of exp * exp  (** assignment e.g. x := 1 + 2 * y *)
   | Seq of stmt * stmt  (** sequence e.g. x := 2; y := x + 1 *)
   | While of exp * stmt  (** loop e.g. while (1 < x) { x := x + 1 } *)
+  | If of exp * stmt  (** branch e.g. if (1 < x) { x := x + 1 } *)
   | Skip  (** skip *)
   | NonLocal of string
   | Return of exp  (** return e *)
