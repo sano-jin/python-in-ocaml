@@ -25,7 +25,6 @@ let rec eval_exp envs exp =
   | Times (e1, e2) -> IntVal (eval_binop_int ( * ) e1 e2)
   | Lt (e1, e2) -> BoolVal (eval_binop_int ( < ) e1 e2)
   | Lambda (args, body) -> LambdaVal (args, body, envs)
-  | RecFunc (f, args, body) -> RecFuncVal (f, args, body, envs)
   | App (f, args) -> (
       let argVals = List.map (eval_exp envs) args in
       if f = Var "print" then (
@@ -40,13 +39,6 @@ let rec eval_exp envs exp =
         match eval_exp envs f with
         | LambdaVal (vars, body, envs') ->
             eval_app ((ref @@ List.combine vars argVals) :: envs') body
-        | RecFuncVal (f, vars, body, envs') ->
-            eval_app
-              (ref
-                 ((f, ref (RecFuncVal (f, vars, body, envs')))
-                 :: List.combine vars argVals)
-              :: envs')
-              body
         | _ -> failwith @@ "expected function type")
 
 and eval_stmt (nonlocals, envs) stmt =

@@ -146,11 +146,11 @@ stmt:
 
   (* def f (x1, ..., xn): { block } *)
   | DEF VAR vars COL INDENT block DEDENT
-    { Assign (Var $2, RecFunc ($2, $3, $6)) }
+    { Assign (Var $2, Lambda ($3, $6)) }
 
   (* def f (x1, ..., xn): <nothing> *)
   | DEF VAR vars COL
-    { Assign (Var $2, RecFunc ($2, $3, Skip)) }
+    { Assign (Var $2, Lambda ($3, Skip)) }
 
   (* while exp block *)
   | WHILE exp COL INDENT block DEDENT
