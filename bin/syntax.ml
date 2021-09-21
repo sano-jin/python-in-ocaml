@@ -13,7 +13,7 @@ type exp =
   | Lambda of string list * stmt  (** lambda x, y : {return x + y} *)
   | App of exp * exp list  (** f(x1, ..., xn) *)
   | Access of exp * string  (** exp.exp *)
-  | Class of string * stmt  (** class  *)
+  | Class of string * string list * stmt  (** class  *)
 
 and stmt =
   | Exp of exp

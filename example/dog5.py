@@ -10,6 +10,9 @@ class Dog:
     def bark2(_):
         print('hoge')
         
+    def bark3(self):
+        print(self.name)
+        
 d = Dog('Fido')
 e = Dog('Buddy')
 
@@ -24,6 +27,7 @@ e.bark()
 e.bark2()
 # ---> 'hoge'
 
+Dog.bark3(d)
 
 print(e.__class__.__name__)
 # ---> 'hoge'

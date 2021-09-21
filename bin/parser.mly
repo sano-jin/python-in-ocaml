@@ -170,11 +170,19 @@ stmt:
 
   (* class MyClass: { block } *)
   | CLASS VAR COL INDENT block DEDENT
-    { Assign (Var $2, Class ($2, $5)) }
+    { Assign (Var $2, Class ($2, [], $5)) }
 
   (* class MyClass: <nothing> *)
   | CLASS VAR COL 
-    { Assign (Var $2, Class ($2, Skip)) }
+    { Assign (Var $2, Class ($2, [], Skip)) }
+
+  (* class MyClass: { block } *)
+  | CLASS VAR vars COL INDENT block DEDENT
+    { Assign (Var $2, Class ($2, $3, $6)) }
+
+  (* class MyClass: <nothing> *)
+  | CLASS VAR vars COL 
+    { Assign (Var $2, Class ($2, $3, Skip)) }
 
   (* while exp block *)
   | WHILE exp COL INDENT block DEDENT
