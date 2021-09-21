@@ -94,3 +94,12 @@ let rec dropLast1 = function
   | h :: t -> h :: dropLast1 t
 
 let update_ref f r = r := f !r
+
+let remove_dup comparer list =
+  let rec helper result = function
+    | [] -> result
+    | h :: t ->
+        if List.exists (comparer h) result then helper result t
+        else helper (h :: result) t
+  in
+  List.rev @@ helper [] list

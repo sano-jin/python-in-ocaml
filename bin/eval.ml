@@ -8,54 +8,51 @@ let extract_int = function
   | IntVal i -> i
   | _ -> failwith @@ "type error. expected int"
 
-let extract_class_variables_ref obj_fields_ref =
-  match !(List.assoc "__class__" !obj_fields_ref) with
-  | ObjectVal class_fields -> class_fields
-  | _ -> failwith @@ "__class__ is expected to be an object"
+let extract_object_variables_ref value_ref =
+  match !value_ref with
+  | ObjectVal obj_variables_ref -> obj_variables_ref
+  | value -> failwith @@ string_of_value value ^ " is expected to be an object"
+
+let extract_class_variables_ref =
+  extract_object_variables_ref <. List.assoc "__class__" <. ( ! )
+
+let extract_mro_class_objs_ref =
+  extract_object_variables_ref <. List.assoc "__mro__" <. ( ! )
+  <. extract_object_variables_ref
 
 let extract_class_variable_opt obj_fields_ref prop =
   List.assoc_opt prop !(extract_class_variables_ref obj_fields_ref)
 
-let object_fields =
+let object_variables =
   [
-    ( "__class__",
-      ref
-      @@ ObjectVal
-           (ref
-              [
-                ("__init__", ref @@ LambdaVal ([], Skip, []));
-                ("__mro__", ref @@ ObjectVal (ref []));
-              ]) );
+    ("__init__", ref @@ LambdaVal ([ "<self>" ], Skip, []));
+    ("__mro__", ref @@ ObjectVal (ref []));
   ]
 
-let class_of_lambda = function
+let object_fields = [ ("__class__", ref @@ ObjectVal (ref object_variables)) ]
+
+let class_of_lambda_ref = function
   | LambdaVal (_, _, env :: _) -> List.assoc "__class__" !env
   | _ -> failwith @@ "Cannot extract class object fromm non-lambda"
 
-let rec extract_variable_opt obj_fields_ref prop =
+let extract_variable_opt obj_fields_ref prop =
   match List.assoc_opt prop !obj_fields_ref with
   | Some prop -> Some prop
   | None -> (
-      match !(List.assoc "__class__" !obj_fields_ref) with
-      | ObjectVal class_fields -> (
-          match List.assoc_opt prop !class_fields with
-          | Some prop -> Some prop
-          | None -> (
-              match !(List.assoc "__mro__" !class_fields) with
-              | ObjectVal base_classes ->
-                  let extract_base_class_variable_opt = function
-                    | ObjectVal base_class_obj_fields_ref ->
-                        extract_variable_opt base_class_obj_fields_ref prop
-                    | LambdaVal (_, _, env :: _) ->
-                        extract_class_variable_opt env prop
-                    | _ ->
-                        failwith @@ "base classes are expected to be an object"
-                  in
-                  one_of
-                    (extract_base_class_variable_opt <. ( ! ) <. snd)
-                    !base_classes
-              | _ -> failwith @@ "__class__ is expected to be an object"))
-      | _ -> failwith @@ "__class__ is expected to be an object")
+      let class_fields = extract_class_variables_ref obj_fields_ref in
+      match List.assoc_opt prop !class_fields with
+      | Some prop -> Some prop
+      | None ->
+          prerr_endline ">>> extract_variable_opt ";
+          let base_classes =
+            extract_object_variables_ref @@ List.assoc "__mro__" !class_fields
+          in
+          let extract_base_class_variable_opt =
+            List.assoc_opt prop <. ( ! ) <. extract_object_variables_ref <. snd
+          in
+          one_of extract_base_class_variable_opt !base_classes)
+
+let seq_of_list = List.fold_left (fun acc stmt -> Seq (acc, stmt)) Skip
 
 (** The evaluator *)
 let rec eval_exp envs exp =
@@ -87,11 +84,17 @@ let rec eval_exp envs exp =
       | _, argVals -> (
           match eval_exp envs f with
           | LambdaVal (vars, body, envs') ->
+              prerr_endline @@ ">>> vars = [" ^ String.concat ", " vars ^ "]"
+              ^ ", vals = ["
+              ^ String.concat ", " (List.map string_of_value argVals)
+              ^ "]";
               let argVals = List.map ref argVals in
               let new_env = ref @@ List.combine vars argVals in
               Either.fold ~left:(const VoidVal) ~right:id
               @@ eval_stmt ([], new_env :: envs') body
-          | _ -> failwith @@ "expected function type"))
+          | other_val ->
+              failwith @@ string_of_value other_val
+              ^ " is expected to be a  function type"))
   | Access (obj, prop) -> (
       match eval_exp envs obj with
       | ObjectVal dict -> (
@@ -102,17 +105,41 @@ let rec eval_exp envs exp =
           !(Option.get @@ extract_class_variable_opt variables_ref prop)
       | _ -> failwith @@ "Cannot access to a non-object with a dot notation")
   | Class (name, vars, body) -> (
+      prerr_endline @@ "--------- class " ^ name ^ " ------------------";
       let env = ref [] in
-      let vars = if vars = [] then [ "object" ] else vars in
+      let vars = vars @ [ "object" ] in
       let class_obj_of_var = function
-        | "object" ->
-            ref @@ ObjectVal (ref [ ("__mro__", ref @@ ObjectVal (ref [])) ])
+        | "object" -> [ ("object", ref @@ ObjectVal (ref object_variables)) ]
         | class_obj_name ->
-            class_of_lambda
-              !(Option.get
-               @@ one_of (List.assoc_opt class_obj_name <. ( ! )) envs)
+            let class_obj_ref =
+              class_of_lambda_ref
+                !(Option.get
+                 @@ one_of (List.assoc_opt class_obj_name <. ( ! )) envs)
+            in
+            (class_obj_name, class_obj_ref)
+            :: !(extract_mro_class_objs_ref class_obj_ref)
       in
-      let mro = List.combine vars @@ List.map class_obj_of_var vars in
+      let mro =
+        remove_dup (fun (name1, _) (name2, _) -> name1 = name2)
+        @@ List.concat_map class_obj_of_var vars
+      in
+      prerr_endline @@ ">>> " ^ String.concat ", " @@ List.map fst mro;
+      let super_obj_name, super_obj_ref = List.hd mro in
+      let init_vars_of_variables_ref variables_ref =
+        match !(List.assoc "__init__" !variables_ref) with
+        | LambdaVal (self :: vars, _, _) -> (self, vars)
+        | _ ->
+            failwith
+              "__init__ should be function type with zero or more arguments"
+      in
+      let super_init_vars =
+        snd @@ init_vars_of_variables_ref
+        @@ extract_object_variables_ref super_obj_ref
+      in
+      prerr_endline @@ ">>> super_init_vars ["
+      ^ String.concat ", " super_init_vars
+      ^ "]";
+      prerr_endline "hoge";
       env :=
         [
           ("__name__", ref @@ StringVal name);
@@ -122,13 +149,83 @@ let rec eval_exp envs exp =
       match eval_stmt ([], env :: envs) body with
       | Either.Right _ -> failwith @@ "cannot return in class definition"
       | Either.Left _ ->
-          let init_vars =
-            match !(List.assoc "__init__" !env) with
-            | LambdaVal (_ :: vars, _, _) -> vars
-            | _ ->
-                failwith
-                  "__init__ should be function type with zero or more arguments"
+          let super_init self_var =
+            Lambda
+              ( super_init_vars,
+                seq_of_list
+                  [
+                    Exp
+                      (App
+                         ( Var "print",
+                           [
+                             StringLit
+                               ("    .....    ------- enter super ["
+                               ^ String.concat ", " super_init_vars
+                               ^ "] ...................");
+                           ] ));
+                    Exp
+                      (App
+                         ( Var "print",
+                           [
+                             StringLit
+                               ("    .....    ------- super is "
+                              ^ super_obj_name);
+                           ] ));
+                    Exp
+                      (App
+                         ( Var "print",
+                           [
+                             StringLit "    .....    ------- super.__init is ";
+                             Access (Var super_obj_name, "__init__");
+                           ] ));
+                    Exp
+                      (App
+                         ( Access (Var super_obj_name, "__init__"),
+                           Var self_var
+                           :: List.map (fun var -> Var var) super_init_vars ));
+                    Exp
+                      (App
+                         ( Var "print",
+                           [
+                             StringLit
+                               ("    .....    ------- exit super ["
+                               ^ String.concat ", " super_init_vars
+                               ^ "] ...................");
+                           ] ));
+                  ] )
           in
+          prerr_endline @@ ">>> super_init_vars ["
+          ^ String.concat ", " super_init_vars
+          ^ "]";
+          let super_stmt self_var =
+            seq_of_list
+              [
+                Exp
+                  (App
+                     ( Var "print",
+                       [
+                         StringLit ("---> my super class is " ^ super_obj_name);
+                       ] ));
+                Exp
+                  (App
+                     ( Var "print",
+                       [
+                         StringLit
+                           ("---> super_init_vars ["
+                           ^ String.concat ", " super_init_vars
+                           ^ "]");
+                       ] ));
+                Assign (Var "<proxy_obj>", App (Var "object", []));
+                Assign
+                  (Access (Var "<proxy_obj>", "__init__"), super_init self_var);
+                Assign (Var "super", Lambda ([], Return (Var "<proxy_obj>")));
+              ]
+          in
+          (let init_ref = List.assoc "__init__" !env in
+           match !init_ref with
+           | LambdaVal ((self :: _ as vars), stmt, env) ->
+               init_ref := LambdaVal (vars, Seq (super_stmt self, stmt), env)
+           | _ -> ());
           let classify_methods (var, value) =
             match !value with
             | LambdaVal (self_var :: vars, body, _) ->
@@ -136,13 +233,15 @@ let rec eval_exp envs exp =
                   (var, Lambda ([ self_var ], Return (Lambda (vars, body))))
             | _ -> Either.Right (var, value)
           in
-          let seq_of_list =
-            List.fold_left (fun acc stmt -> Seq (acc, stmt)) Skip
-          in
           let methods, _ = List.partition_map classify_methods !env in
           let method_binding_stmt_of (var, lambda) =
             Assign (Access (Var "<self>", var), App (lambda, [ Var "<self>" ]))
           in
+          let init_self, init_vars = init_vars_of_variables_ref env in
+          prerr_endline @@ ">>> init_vars ["
+          ^ String.concat ", " (init_self :: init_vars)
+          ^ "]";
+          prerr_endline "hoge";
           let stmts =
             [
               Assign (Var "<self>", App (Var "object", []));
@@ -157,10 +256,13 @@ let rec eval_exp envs exp =
                 Return (Var "<self>");
               ]
           in
+
+          prerr_endline @@ "--------- exit class " ^ name
+          ^ " ------------------";
           LambdaVal
             ( init_vars,
               seq_of_list stmts,
-              ref [ ("__class__", ref (ObjectVal (ref !env))) ] :: envs ))
+              ref [ ("__class__", ref (ObjectVal env)) ] :: ref !env :: envs ))
 
 and eval_stmt (nonlocals, envs) stmt =
   let proceed = Either.Left nonlocals in

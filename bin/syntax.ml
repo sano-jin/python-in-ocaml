@@ -43,7 +43,8 @@ let rec string_of_value = function
   | BoolVal true -> "true"
   | BoolVal false -> "false"
   | StringVal str -> str
-  | LambdaVal _ -> "lambda ..."
+  (*  | LambdaVal _ -> "lambda ..." *)
+  | LambdaVal (vars, _, _) -> "lambda (" ^ String.concat ", " vars ^ "): ..."
   | ObjectVal dict as self ->
       let string_of_binding (var, value) =
         var ^ " : "
