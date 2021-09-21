@@ -8,20 +8,16 @@ let extract_int = function
   | IntVal i -> i
   | _ -> failwith @@ "type error. expected int"
 
-let extract_object_variables_ref value_ref =
-  match !value_ref with
+let extract_object_variables_ref = function
   | ObjectVal obj_variables_ref -> obj_variables_ref
   | value -> failwith @@ string_of_value value ^ " is expected to be an object"
 
-let extract_class_variables_ref =
-  extract_object_variables_ref <. List.assoc "__class__" <. ( ! )
+let extract_class_variables_ref obj =
+  (extract_object_variables_ref <. ( ! ) <. List.assoc "__class__") obj
 
 let extract_mro_class_objs_ref =
-  extract_object_variables_ref <. List.assoc "__mro__" <. ( ! )
+  extract_object_variables_ref <. ( ! ) <. List.assoc "__mro__" <. ( ! )
   <. extract_object_variables_ref
-
-let extract_class_variable_opt obj_fields_ref prop =
-  List.assoc_opt prop !(extract_class_variables_ref obj_fields_ref)
 
 let object_variables =
   [
@@ -35,21 +31,43 @@ let class_of_lambda_ref = function
   | LambdaVal (_, _, env :: _) -> List.assoc "__class__" !env
   | _ -> failwith @@ "Cannot extract class object fromm non-lambda"
 
-let extract_variable_opt obj_fields_ref prop =
-  match List.assoc_opt prop !obj_fields_ref with
+let app_instance instance_obj = function
+  | LambdaVal (var :: vars, body, env :: envs) ->
+      LambdaVal (vars, body, ref ((var, ref instance_obj) :: !env) :: envs)
+  | other -> other
+
+let extract_class_variable_opt class_fields prop =
+  match List.assoc_opt prop class_fields with
   | Some prop -> Some prop
-  | None -> (
-      let class_fields = extract_class_variables_ref obj_fields_ref in
-      match List.assoc_opt prop !class_fields with
-      | Some prop -> Some prop
-      | None ->
-          let base_classes =
-            extract_object_variables_ref @@ List.assoc "__mro__" !class_fields
-          in
-          let extract_base_class_variable_opt =
-            List.assoc_opt prop <. ( ! ) <. extract_object_variables_ref <. snd
-          in
-          one_of extract_base_class_variable_opt !base_classes)
+  | None ->
+      let base_classes =
+        extract_object_variables_ref @@ ( ! )
+        @@ List.assoc "__mro__" class_fields
+      in
+      let extract_base_class_variable_opt =
+        List.assoc_opt prop <. ( ! ) <. extract_object_variables_ref <. ( ! )
+        <. snd
+      in
+      one_of extract_base_class_variable_opt !base_classes
+
+let extract_variable_opt obj prop =
+  let obj_fields = !(extract_object_variables_ref obj) in
+  if List.mem_assoc "__class__" obj_fields then
+    match List.assoc_opt prop obj_fields with
+    | Some prop -> Some !prop
+    | None ->
+        app_instance obj <. ( ! )
+        <$> extract_class_variable_opt
+              !(extract_class_variables_ref obj_fields)
+              prop
+  else
+    match List.assoc_opt prop obj_fields with
+    | Some prop -> Some !prop
+    | None ->
+        app_instance obj <. ( ! )
+        <$> extract_class_variable_opt
+              !(extract_class_variables_ref obj_fields)
+              prop
 
 let seq_of_list = List.fold_left (fun acc stmt -> Seq (acc, stmt)) Skip
 
@@ -92,9 +110,12 @@ let rec eval_exp envs exp =
               ^ " is expected to be a  function type"))
   | Access (obj, prop) -> (
       match eval_exp envs obj with
-      | ObjectVal dict -> !(Option.get @@ extract_variable_opt dict prop)
+      | ObjectVal _ as obj -> Option.get @@ extract_variable_opt obj prop
       | LambdaVal (_, _, variables_ref :: _) ->
-          !(Option.get @@ extract_class_variable_opt variables_ref prop)
+          !(Option.get
+           @@ extract_class_variable_opt
+                !(extract_class_variables_ref !variables_ref)
+                prop)
       | _ -> failwith @@ "Cannot access to a non-object with a dot notation")
   | Class (name, vars, body) -> (
       let env = ref [] in
@@ -108,7 +129,7 @@ let rec eval_exp envs exp =
                  @@ one_of (List.assoc_opt class_obj_name <. ( ! )) envs)
             in
             (class_obj_name, class_obj_ref)
-            :: !(extract_mro_class_objs_ref class_obj_ref)
+            :: !(extract_mro_class_objs_ref !class_obj_ref)
       in
       let mro =
         remove_dup (fun (name1, _) (name2, _) -> name1 = name2)
@@ -124,7 +145,7 @@ let rec eval_exp envs exp =
       in
       let super_init_vars =
         snd @@ init_vars_of_variables_ref
-        @@ extract_object_variables_ref super_obj_ref
+        @@ extract_object_variables_ref !super_obj_ref
       in
       env :=
         [
@@ -161,24 +182,12 @@ let rec eval_exp envs exp =
            | LambdaVal ((self :: _ as vars), stmt, env) ->
                init_ref := LambdaVal (vars, Seq (super_stmt self, stmt), env)
            | _ -> ());
-          let classify_methods (var, value) =
-            match !value with
-            | LambdaVal (self_var :: vars, body, _) ->
-                Either.Left
-                  (var, Lambda ([ self_var ], Return (Lambda (vars, body))))
-            | _ -> Either.Right (var, value)
-          in
-          let methods, _ = List.partition_map classify_methods !env in
-          let method_binding_stmt_of (var, lambda) =
-            Assign (Access (Var "<self>", var), App (lambda, [ Var "<self>" ]))
-          in
           let _, init_vars = init_vars_of_variables_ref env in
           let stmts =
             [
               Assign (Var "<self>", App (Var "object", []));
               Assign (Access (Var "<self>", "__class__"), Var "__class__");
             ]
-            @ List.map method_binding_stmt_of methods
             @ [
                 Exp
                   (App
@@ -222,7 +231,7 @@ and eval_stmt (nonlocals, envs) stmt =
           proceed
       | LambdaVal (_, _, variables_ref :: _) ->
           (let class_variables_ref =
-             extract_class_variables_ref variables_ref
+             extract_class_variables_ref !variables_ref
            in
            match List.assoc_opt prop !class_variables_ref with
            | Some prop -> prop := value

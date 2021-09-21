@@ -2,6 +2,7 @@
 
 open Eval
 open Util
+open Syntax
 
 let preprocess_newline_in_exp paren_n = function
   | '(' -> (succ paren_n, '(')
@@ -14,6 +15,6 @@ let preprocess_newlines_in_exp =
 
 let () =
   ignore
-  @@ eval_stmt ([], [ ref [] ])
+  @@ eval_stmt ([], [ ref [ ("pass", ref VoidVal) ] ])
   @@ Parsing.parse_with_error
   @@ read_file Sys.argv.(1)
