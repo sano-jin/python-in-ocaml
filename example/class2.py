@@ -24,9 +24,10 @@ class MySubClass(MyClass):
         self.piyo = piyo
         
 obj = MySubClass(1, 2)
-print(obj)
-# print(obj.name)
+# print(obj)
+print(obj.__class__.__mro__)
+print(' ---- ')
+print(obj.name)
 print(obj.hige)
 print(obj.piyo)
-print(obj.__class__)
-print(obj.__class__.__mro__)
+# print(obj.__class__)

@@ -43,7 +43,6 @@ let extract_variable_opt obj_fields_ref prop =
       match List.assoc_opt prop !class_fields with
       | Some prop -> Some prop
       | None ->
-          prerr_endline ">>> extract_variable_opt ";
           let base_classes =
             extract_object_variables_ref @@ List.assoc "__mro__" !class_fields
           in
@@ -84,10 +83,6 @@ let rec eval_exp envs exp =
       | _, argVals -> (
           match eval_exp envs f with
           | LambdaVal (vars, body, envs') ->
-              prerr_endline @@ ">>> vars = [" ^ String.concat ", " vars ^ "]"
-              ^ ", vals = ["
-              ^ String.concat ", " (List.map string_of_value argVals)
-              ^ "]";
               let argVals = List.map ref argVals in
               let new_env = ref @@ List.combine vars argVals in
               Either.fold ~left:(const VoidVal) ~right:id
@@ -97,15 +92,11 @@ let rec eval_exp envs exp =
               ^ " is expected to be a  function type"))
   | Access (obj, prop) -> (
       match eval_exp envs obj with
-      | ObjectVal dict -> (
-          match List.assoc_opt prop !dict with
-          | Some prop_ref -> !prop_ref
-          | None -> !(Option.get @@ extract_class_variable_opt dict prop))
+      | ObjectVal dict -> !(Option.get @@ extract_variable_opt dict prop)
       | LambdaVal (_, _, variables_ref :: _) ->
           !(Option.get @@ extract_class_variable_opt variables_ref prop)
       | _ -> failwith @@ "Cannot access to a non-object with a dot notation")
   | Class (name, vars, body) -> (
-      prerr_endline @@ "--------- class " ^ name ^ " ------------------";
       let env = ref [] in
       let vars = vars @ [ "object" ] in
       let class_obj_of_var = function
@@ -123,7 +114,6 @@ let rec eval_exp envs exp =
         remove_dup (fun (name1, _) (name2, _) -> name1 = name2)
         @@ List.concat_map class_obj_of_var vars
       in
-      prerr_endline @@ ">>> " ^ String.concat ", " @@ List.map fst mro;
       let super_obj_name, super_obj_ref = List.hd mro in
       let init_vars_of_variables_ref variables_ref =
         match !(List.assoc "__init__" !variables_ref) with
@@ -136,10 +126,6 @@ let rec eval_exp envs exp =
         snd @@ init_vars_of_variables_ref
         @@ extract_object_variables_ref super_obj_ref
       in
-      prerr_endline @@ ">>> super_init_vars ["
-      ^ String.concat ", " super_init_vars
-      ^ "]";
-      prerr_endline "hoge";
       env :=
         [
           ("__name__", ref @@ StringVal name);
@@ -156,65 +142,14 @@ let rec eval_exp envs exp =
                   [
                     Exp
                       (App
-                         ( Var "print",
-                           [
-                             StringLit
-                               ("    .....    ------- enter super ["
-                               ^ String.concat ", " super_init_vars
-                               ^ "] ...................");
-                           ] ));
-                    Exp
-                      (App
-                         ( Var "print",
-                           [
-                             StringLit
-                               ("    .....    ------- super is "
-                              ^ super_obj_name);
-                           ] ));
-                    Exp
-                      (App
-                         ( Var "print",
-                           [
-                             StringLit "    .....    ------- super.__init is ";
-                             Access (Var super_obj_name, "__init__");
-                           ] ));
-                    Exp
-                      (App
                          ( Access (Var super_obj_name, "__init__"),
                            Var self_var
                            :: List.map (fun var -> Var var) super_init_vars ));
-                    Exp
-                      (App
-                         ( Var "print",
-                           [
-                             StringLit
-                               ("    .....    ------- exit super ["
-                               ^ String.concat ", " super_init_vars
-                               ^ "] ...................");
-                           ] ));
                   ] )
           in
-          prerr_endline @@ ">>> super_init_vars ["
-          ^ String.concat ", " super_init_vars
-          ^ "]";
           let super_stmt self_var =
             seq_of_list
               [
-                Exp
-                  (App
-                     ( Var "print",
-                       [
-                         StringLit ("---> my super class is " ^ super_obj_name);
-                       ] ));
-                Exp
-                  (App
-                     ( Var "print",
-                       [
-                         StringLit
-                           ("---> super_init_vars ["
-                           ^ String.concat ", " super_init_vars
-                           ^ "]");
-                       ] ));
                 Assign (Var "<proxy_obj>", App (Var "object", []));
                 Assign
                   (Access (Var "<proxy_obj>", "__init__"), super_init self_var);
@@ -237,11 +172,7 @@ let rec eval_exp envs exp =
           let method_binding_stmt_of (var, lambda) =
             Assign (Access (Var "<self>", var), App (lambda, [ Var "<self>" ]))
           in
-          let init_self, init_vars = init_vars_of_variables_ref env in
-          prerr_endline @@ ">>> init_vars ["
-          ^ String.concat ", " (init_self :: init_vars)
-          ^ "]";
-          prerr_endline "hoge";
+          let _, init_vars = init_vars_of_variables_ref env in
           let stmts =
             [
               Assign (Var "<self>", App (Var "object", []));
@@ -257,8 +188,6 @@ let rec eval_exp envs exp =
               ]
           in
 
-          prerr_endline @@ "--------- exit class " ^ name
-          ^ " ------------------";
           LambdaVal
             ( init_vars,
               seq_of_list stmts,
