@@ -92,60 +92,55 @@ let rec eval_exp envs exp =
   | Lambda (args, body) -> LambdaVal (args, body, envs)
   | App (f, args) -> (
       match (f, List.map (eval_exp envs) args) with
-      | Var "object", [] -> ObjectVal (ref object_fields)
       | Var "copy", [ ObjectVal dict ] ->
           ObjectVal (ref @@ List.map (second (ref <. ( ! ))) !dict)
       | Var "print", argVals ->
           print_endline @@ String.concat " " @@ List.map string_of_value argVals;
           VoidVal
       | _, argVals -> (
+          let beta_conv argVals = function
+            | LambdaVal (vars, body, envs') ->
+                let argVals = List.map ref argVals in
+                let new_env = ref @@ List.combine vars argVals in
+                Either.fold ~left:(const VoidVal) ~right:id
+                @@ eval_stmt ([], new_env :: envs') body
+            | other_val ->
+                failwith @@ string_of_value other_val
+                ^ " is expected to be a function type"
+          in
           match eval_exp envs f with
-          | LambdaVal (vars, body, envs') ->
-              let argVals = List.map ref argVals in
-              let new_env = ref @@ List.combine vars argVals in
-              Either.fold ~left:(const VoidVal) ~right:id
-              @@ eval_stmt ([], new_env :: envs') body
+          | LambdaVal _ as f -> beta_conv argVals f
+          | ObjectVal class_fields_ref as class_obj ->
+              prerr_endline @@ "--- creating an instance object --- ";
+              let init =
+                !(Option.get
+                 @@ extract_class_variable_opt !class_fields_ref "__init__")
+              in
+              let instance_obj =
+                ObjectVal (ref [ ("__class__", ref class_obj) ])
+              in
+              ignore @@ beta_conv (instance_obj :: argVals) init;
+              instance_obj
           | other_val ->
               failwith @@ string_of_value other_val
-              ^ " is expected to be a  function type"))
+              ^ " is expected to be a class object or a function type"))
   | Access (obj, prop) -> (
       match eval_exp envs obj with
       | ObjectVal _ as obj -> Option.get @@ extract_variable_opt obj prop
-      | LambdaVal (_, _, variables_ref :: _) ->
-          !(Option.get
-           @@ extract_class_variable_opt
-                !(extract_class_variables_ref !variables_ref)
-                prop)
       | _ -> failwith @@ "Cannot access to a non-object with a dot notation")
   | Class (name, vars, body) -> (
       let env = ref [] in
       let vars = vars @ [ "object" ] in
-      let class_obj_of_var = function
-        | "object" -> [ ("object", ref @@ ObjectVal (ref object_variables)) ]
-        | class_obj_name ->
-            let class_obj_ref =
-              class_of_lambda_ref
-                !(Option.get
-                 @@ one_of (List.assoc_opt class_obj_name <. ( ! )) envs)
-            in
-            (class_obj_name, class_obj_ref)
-            :: !(extract_mro_class_objs_ref !class_obj_ref)
+      let super_class_objs_of_var class_obj_name =
+        let class_obj = eval_exp envs (Var class_obj_name) in
+        (class_obj_name, ref class_obj)
+        :: List.map
+             (second (ref <. ( ! )))
+             !(extract_mro_class_objs_ref class_obj)
       in
       let mro =
         remove_dup (fun (name1, _) (name2, _) -> name1 = name2)
-        @@ List.concat_map class_obj_of_var vars
-      in
-      let super_obj_name, super_obj_ref = List.hd mro in
-      let init_vars_of_variables_ref variables_ref =
-        match !(List.assoc "__init__" !variables_ref) with
-        | LambdaVal (self :: vars, _, _) -> (self, vars)
-        | _ ->
-            failwith
-              "__init__ should be function type with zero or more arguments"
-      in
-      let super_init_vars =
-        snd @@ init_vars_of_variables_ref
-        @@ extract_object_variables_ref !super_obj_ref
+        @@ List.concat_map super_class_objs_of_var vars
       in
       env :=
         [
@@ -155,52 +150,7 @@ let rec eval_exp envs exp =
         ];
       match eval_stmt ([], env :: envs) body with
       | Either.Right _ -> failwith @@ "cannot return in class definition"
-      | Either.Left _ ->
-          let super_init self_var =
-            Lambda
-              ( super_init_vars,
-                seq_of_list
-                  [
-                    Exp
-                      (App
-                         ( Access (Var super_obj_name, "__init__"),
-                           Var self_var
-                           :: List.map (fun var -> Var var) super_init_vars ));
-                  ] )
-          in
-          let super_stmt self_var =
-            seq_of_list
-              [
-                Assign (Var "<proxy_obj>", App (Var "object", []));
-                Assign
-                  (Access (Var "<proxy_obj>", "__init__"), super_init self_var);
-                Assign (Var "super", Lambda ([], Return (Var "<proxy_obj>")));
-              ]
-          in
-          (let init_ref = List.assoc "__init__" !env in
-           match !init_ref with
-           | LambdaVal ((self :: _ as vars), stmt, env) ->
-               init_ref := LambdaVal (vars, Seq (super_stmt self, stmt), env)
-           | _ -> ());
-          let _, init_vars = init_vars_of_variables_ref env in
-          let stmts =
-            [
-              Assign (Var "<self>", App (Var "object", []));
-              Assign (Access (Var "<self>", "__class__"), Var "__class__");
-            ]
-            @ [
-                Exp
-                  (App
-                     ( Access (Var "<self>", "__init__"),
-                       List.map (fun var -> Var var) init_vars ));
-                Return (Var "<self>");
-              ]
-          in
-
-          LambdaVal
-            ( init_vars,
-              seq_of_list stmts,
-              ref [ ("__class__", ref (ObjectVal env)) ] :: ref !env :: envs ))
+      | Either.Left _ -> ObjectVal env)
 
 and eval_stmt (nonlocals, envs) stmt =
   let proceed = Either.Left nonlocals in
@@ -228,15 +178,6 @@ and eval_stmt (nonlocals, envs) stmt =
           (match List.assoc_opt prop !dict with
           | Some prop -> prop := value
           | None -> dict := (prop, ref value) :: !dict);
-          proceed
-      | LambdaVal (_, _, variables_ref :: _) ->
-          (let class_variables_ref =
-             extract_class_variables_ref !variables_ref
-           in
-           match List.assoc_opt prop !class_variables_ref with
-           | Some prop -> prop := value
-           | None ->
-               class_variables_ref := (prop, ref value) :: !class_variables_ref);
           proceed
       | _ -> failwith @@ "Cannot access to a non-object with a dot notation")
   | Assign (_, _) -> failwith @@ "cannot assign to operator"

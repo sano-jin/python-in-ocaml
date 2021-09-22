@@ -12,9 +12,13 @@ class Dog:
         
     def bark3(self):
         print(self.name)
+
+print(Dog)
         
 d = Dog('Fido')
 e = Dog('Buddy')
+
+
 
 print(e)
 print(d)
