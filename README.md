@@ -1,6 +1,6 @@
-# go-in-ocaml
+# python-in-ocaml
 
-A very small subset of Go (like) language interpreter written in OCaml.
+A very small subset of Python written in OCaml.
 
 ## How to use
 
