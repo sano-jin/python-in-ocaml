@@ -54,7 +54,6 @@
 %nonassoc LPAREN
 
 
-
 %start main
 %type <Syntax.stmt> main
 
@@ -64,6 +63,8 @@
 main:
   | DELIMITER block EOF { $2 }
   | INDENT block DEDENT DELIMITER EOF { $2 }
+  | BAD_DEDENT { failwith "bad dedent"} 
+  | TOKENS { failwith "tokens should be exploded"}
 ;
 
 (* tuple *)

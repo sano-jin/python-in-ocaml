@@ -2,79 +2,12 @@
 
 open Syntax
 open Util
+open Object
 
 (** some helper functions *)
 let extract_int = function
   | IntVal i -> i
   | _ -> failwith @@ "type error. expected int"
-
-let extract_object_variables_ref = function
-  | ObjectVal obj_variables_ref -> obj_variables_ref
-  | value -> failwith @@ string_of_value value ^ " is expected to be an object"
-
-let extract_class_variables_ref obj =
-  (extract_object_variables_ref <. ( ! ) <. List.assoc "__class__") obj
-
-let extract_mro_class_objs_ref =
-  extract_object_variables_ref <. ( ! ) <. List.assoc "__mro__" <. ( ! )
-  <. extract_object_variables_ref
-
-let mro_of_class base_classes =
-  let base_classes_of =
-    ( ! ) <. extract_object_variables_ref <. ( ! ) <. List.assoc "__bases__"
-    <. ( ! ) <. extract_object_variables_ref <. ( ! ) <. snd
-  in
-  let rec helper base_classes =
-    match List.map base_classes_of base_classes with
-    | [] -> []
-    | base_base_classes ->
-        base_classes :: (helper @@ List.concat base_base_classes)
-  in
-  remove_dup (fun (_, class_obj_ref1) (_, class_obj_ref2) ->
-      !class_obj_ref1 == !class_obj_ref2)
-  @@ List.concat @@ helper base_classes
-
-let object_variables =
-  [
-    ("__init__", ref @@ LambdaVal ([ "_" ], Skip, []));
-    ("__mro__", ref @@ ObjectVal (ref []));
-    ("__bases__", ref @@ ObjectVal (ref []));
-  ]
-
-let object_fields = [ ("__class__", ref @@ ObjectVal (ref object_variables)) ]
-
-let class_of_lambda_ref = function
-  | LambdaVal (_, _, env :: _) -> List.assoc "__class__" !env
-  | _ -> failwith @@ "Cannot extract class object fromm non-lambda"
-
-let app_instance instance_obj = function
-  | LambdaVal (var :: vars, body, env :: envs) ->
-      LambdaVal (vars, body, ref ((var, ref instance_obj) :: !env) :: envs)
-  | other -> other
-
-let extract_class_variable_opt class_fields prop =
-  let base_classes =
-    extract_object_variables_ref @@ ( ! ) @@ List.assoc "__mro__" class_fields
-  in
-  let extract_base_class_variable_opt =
-    List.assoc_opt prop <. ( ! ) <. extract_object_variables_ref <. ( ! ) <. snd
-  in
-  one_of extract_base_class_variable_opt !base_classes
-
-let extract_variable_opt obj prop =
-  let obj_fields = !(extract_object_variables_ref obj) in
-  let is_instance = List.mem_assoc "__class__" obj_fields in
-  if is_instance then
-    match List.assoc_opt prop obj_fields with
-    | Some prop -> Some !prop
-    | None ->
-        app_instance obj <. ( ! )
-        <$> extract_class_variable_opt
-              !(extract_class_variables_ref obj_fields)
-              prop
-  else ( ! ) <$> extract_class_variable_opt obj_fields prop
-
-let seq_of_list = List.fold_left (fun acc stmt -> Seq (acc, stmt)) Skip
 
 (** The evaluator *)
 let rec eval_exp envs exp =
@@ -115,8 +48,8 @@ let rec eval_exp envs exp =
           | LambdaVal _ as f -> beta_conv argVals f
           | ObjectVal class_fields_ref as class_obj ->
               let init =
-                !(Option.get
-                 @@ extract_class_variable_opt !class_fields_ref "__init__")
+                Option.get
+                @@ extract_class_variable_opt !class_fields_ref "__init__"
               in
               let instance_obj =
                 ObjectVal (ref [ ("__class__", ref class_obj) ])
