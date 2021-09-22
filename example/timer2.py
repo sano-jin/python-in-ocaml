@@ -1,9 +1,9 @@
 def timer ():
-    time = 0
     def tick ():
-#        nonlocal time
+        nonlocal time
         time = time + 1
         print (time)
+    time = 0
     return tick
 clock = timer ()
 clock ()

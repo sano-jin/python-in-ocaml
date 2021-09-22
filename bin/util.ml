@@ -87,3 +87,30 @@ let implode = String.of_seq <. List.to_seq
 
 (** make n length list with elem as the all elements *)
 let repeat n elem = List.init n @@ const elem
+
+let rec dropLast1 = function
+  | [] -> failwith "cannot drop element from an empty list"
+  | [ _ ] -> []
+  | h :: t -> h :: dropLast1 t
+
+let update_ref f r = r := f !r
+
+let remove_dup comparer list =
+  let rec helper result = function
+    | [] -> result
+    | h :: t ->
+        if List.exists (comparer h) result then helper result t
+        else helper (h :: result) t
+  in
+  List.rev @@ helper [] list
+
+let rec unconses = function
+  | [] -> ([], [])
+  | [] :: ts -> unconses ts
+  | (h :: t) :: ts ->
+      let hs, ts = unconses ts in
+      (h :: hs, t :: ts)
+
+let rec zip_list lists =
+  let hs, ts = unconses lists in
+  hs :: zip_list ts

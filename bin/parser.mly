@@ -5,6 +5,7 @@
 %}
 
 %token <string> VAR	(* x, y, abc, ... *)
+%token <string> STRING	(* 'str', ... *)
 %token <int> INT	(* 0, 1, 2, ...  *)
 
 (* operators *)
@@ -12,7 +13,9 @@
 %token MINUS		(* '-' *)
 %token ASTERISK		(* '*' *)
 %token LT		(* '<' *)
+%token GT		(* '>' *)
 %token COL		(* ':' *)
+%token DOT		(* '.' *)
 %token COMMA		(* ',' *)
 %token EQ		(* '=' *)
 %token DELIMITER	(* '\n' *)
@@ -32,18 +35,23 @@
 %token TRUE		(* "true"   *)
 %token FALSE		(* "false"  *)
 %token WHILE		(* "while"  *)
+%token IF		(* "if"  *)
 %token LAMBDA		(* "lambda" *)
 %token DEF		(* "def"    *)
+%token CLASS		(* "class"  *)
+%token NONLOCAL		(* "nonlocal"    *)
 %token RETURN		(* "return" *)
 
 (* End of file *)
 %token EOF 
 
 (* Operator associativity *)
-%nonassoc LT
+%nonassoc COL
+%nonassoc LT GT
 %left PLUS
 %left ASTERISK
-
+%left DOT
+%nonassoc LPAREN
 
 
 %start main
@@ -55,6 +63,8 @@
 main:
   | DELIMITER block EOF { $2 }
   | INDENT block DEDENT DELIMITER EOF { $2 }
+  | BAD_DEDENT { failwith "bad dedent"} 
+  | TOKENS { failwith "tokens should be exploded"}
 ;
 
 (* tuple *)
@@ -102,6 +112,9 @@ exp:
   | FALSE
     { BoolLit false }
   
+  | STRING
+    { StringLit $1 }
+  
   (* e1 + e2 *)
   | exp PLUS exp
     { Plus ($1, $3) }
@@ -113,17 +126,22 @@ exp:
   (* e1 < e2 *)
   | exp LT exp
     { Lt ($1, $3) }    
+  
+  (* e1 > e2 *)
+  | exp GT exp
+    { Gt ($1, $3) }    
 
-  (* lambda x1, ..., xn COL { block } *)
-  | LAMBDA vars_inner COL INDENT block DEDENT
-     { Lambda ($2, $5) }
-
-  | LAMBDA vars_inner COL 
-     { Lambda ($2, Skip) }
+  (* lambda x1, ..., xn : { block } *)
+  | LAMBDA vars_inner COL exp
+     { Lambda ($2, Return $4) }
 
   (* application *)
   (* f (e1, ..., en) *)
   | exp arg_exp { App ($1, $2) }
+
+  (* dot notation *)
+  (* exp.var *)
+  | exp DOT VAR { Access ($1, $3) }
 
   (* Parentheses *)
   | LPAREN exp RPAREN
@@ -145,19 +163,25 @@ stmt:
 
   (* def f (x1, ..., xn): { block } *)
   | DEF VAR vars COL INDENT block DEDENT
-    { Assign (Var $2, RecFunc ($2, $3, $6)) }
+    { Assign (Var $2, Lambda ($3, $6)) }
 
-  (* def f (x1, ..., xn): <nothing> *)
-  | DEF VAR vars COL
-    { Assign (Var $2, RecFunc ($2, $3, Skip)) }
+  (* class MyClass: { block } *)
+  | CLASS VAR COL INDENT block DEDENT
+    { Assign (Var $2, Class ($2, [], $5)) }
+
+  (* class MyClass (...): { block } *)
+  | CLASS VAR vars COL INDENT block DEDENT
+    { Assign (Var $2, Class ($2, $3, $6)) }
 
   (* while exp block *)
   | WHILE exp COL INDENT block DEDENT
    { While ($2, $5) }
 
-  (* while nothing *)
-  | WHILE exp COL 
-   { While ($2, Skip) }
+  (* if exp block *)
+  | IF exp COL INDENT block DEDENT
+   { If ($2, $5) }
+
+  | NONLOCAL VAR { NonLocal $2 }
 ;
     
 (* block *)

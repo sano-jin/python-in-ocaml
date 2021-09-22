@@ -26,7 +26,9 @@ rule token = parse
   | '-'       { MINUS }
   | '*'       { ASTERISK }
   | '<'       { LT }
+  | '>'       { GT }
   | ':'       { COL }
+  | '.'       { DOT }
   | ','       { COMMA }
   | '='       { EQ }
 
@@ -38,8 +40,11 @@ rule token = parse
   | "true"    { TRUE }
   | "false"   { FALSE }
   | "while"   { WHILE }
+  | "if"   { IF }
   | "lambda"  { LAMBDA }
   | "def"     { DEF }
+  | "class"     { CLASS }
+  | "nonlocal"     { NONLOCAL }
   | "return"  { RETURN }
 
   (* variable *)
@@ -57,6 +62,12 @@ rule token = parse
 
   (* comments *)
   | '#' [^ '\n']*  { token lexbuf }
+
+  (* string *)
+  | ''' [^ '\'']* '\''
+    { let str = Lexing.lexeme lexbuf in
+      STRING (String.sub str 1 @@ String.length str - 2)
+    }
 
   | _
     {

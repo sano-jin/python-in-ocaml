@@ -1,6 +1,8 @@
 (* eval.ml *)
 
 open Syntax
+open Util
+open Object
 
 (** some helper functions *)
 let extract_int = function
@@ -8,61 +10,128 @@ let extract_int = function
   | _ -> failwith @@ "type error. expected int"
 
 (** The evaluator *)
-let rec eval_exp env exp =
-  let eval_binop f e1 e2 = f (eval_exp env e1) (eval_exp env e2) in
+let rec eval_exp envs exp =
+  let eval_binop f e1 e2 = f (eval_exp envs e1) (eval_exp envs e2) in
   let eval_binop_int f =
     eval_binop (fun v1 v2 -> f (extract_int v1) (extract_int v2))
   in
-  let maybe default = function Some v -> v | None -> default in
   match exp with
-  | Var var -> !(List.assoc var env)
+  | Var var -> (
+      match one_of (List.assoc_opt var <. ( ! )) envs with
+      | Some v -> !v
+      | None -> failwith @@ "unbound variable " ^ var)
   | IntLit num -> IntVal num
   | BoolLit bool -> BoolVal bool
+  | StringLit str -> StringVal str
   | Plus (e1, e2) -> IntVal (eval_binop_int ( + ) e1 e2)
   | Times (e1, e2) -> IntVal (eval_binop_int ( * ) e1 e2)
   | Lt (e1, e2) -> BoolVal (eval_binop_int ( < ) e1 e2)
-  | Lambda (args, body) -> LambdaVal (args, body, env)
-  | RecFunc (f, args, body) -> RecFuncVal (f, args, body, env)
+  | Gt (e1, e2) -> BoolVal (eval_binop_int ( > ) e1 e2)
+  | Lambda (args, body) -> LambdaVal (args, body, envs)
   | App (f, args) -> (
-      let argVals = List.map (eval_exp env) args in
-      if f = Var "print" then (
-        print_endline @@ String.concat ", " @@ List.map string_of_value argVals;
-        VoidVal)
-      else
-        let argVals = List.map ref argVals in
-        match eval_exp env f with
-        | LambdaVal (vars, body, env') ->
-            maybe VoidVal @@ fst
-            @@ eval_stmt (List.combine vars argVals @ env') body
-        | RecFuncVal (f, vars, body, env') ->
-            maybe VoidVal @@ fst
-            @@ eval_stmt
-                 ((f, ref @@ RecFuncVal (f, vars, body, env'))
-                  :: List.combine vars argVals
-                 @ env')
-                 body
-        | _ -> failwith @@ "expected function type")
+      match (f, List.map (eval_exp envs) args) with
+      | Var "print", argVals ->
+          print_endline @@ String.concat " " @@ List.map string_of_value argVals;
+          VoidVal
+      | _, argVals -> (
+          let beta_conv argVals = function
+            | LambdaVal (vars, body, envs') ->
+                let argVals = List.map ref argVals in
+                let new_env = ref @@ List.combine vars argVals in
+                Either.fold ~left:(const VoidVal) ~right:id
+                @@ eval_stmt ([], new_env :: envs') body
+            | other_val ->
+                failwith @@ string_of_value other_val
+                ^ " is expected to be a function type"
+          in
+          match eval_exp envs f with
+          | LambdaVal _ as f -> beta_conv argVals f
+          | ObjectVal class_fields_ref as class_obj ->
+              let init =
+                Option.get
+                @@ extract_class_variable_opt !class_fields_ref "__init__"
+              in
+              let instance_obj =
+                ObjectVal (ref [ ("__class__", ref class_obj) ])
+              in
+              ignore @@ beta_conv (instance_obj :: argVals) init;
+              instance_obj
+          | other_val ->
+              failwith @@ string_of_value other_val
+              ^ " is expected to be a class object or a function type"))
+  | Access (obj, prop) -> (
+      match eval_exp envs obj with
+      | ObjectVal _ as obj -> (
+          match extract_variable_opt obj prop with
+          | Some prop -> prop
+          | None ->
+              failwith @@ "No such field " ^ prop ^ " in object "
+              ^ string_of_value obj)
+      | _ -> failwith @@ "Cannot access to a non-object with a dot notation")
+  | Class (name, vars, body) -> (
+      let vars = if vars = [] then [ "object" ] else vars in
+      let base_classes = List.map (eval_exp envs <. fun var -> Var var) vars in
+      let bases = List.combine vars @@ List.map ref base_classes in
+      let env = ref [] in
+      let this_class_obj = ObjectVal env in
+      let mro = (name, ref this_class_obj) :: mro_of_class bases in
+      env :=
+        ("__name__", ref @@ StringVal name)
+        :: ("__init__", ref @@ LambdaVal ([ "_" ], Skip, []))
+        :: ("__mro__", ref @@ ObjectVal (ref mro))
+        :: ("__bases__", ref @@ ObjectVal (ref bases))
+        :: !env;
+      match eval_stmt ([], env :: envs) body with
+      | Either.Right _ -> failwith @@ "cannot return in class definition"
+      | Either.Left _ -> this_class_obj)
 
-and eval_stmt env stmt =
-  let mzero _ = None in
+and eval_stmt (nonlocals, envs) stmt =
+  let proceed = Either.Left nonlocals in
+  let assign envs var v =
+    let assignable_envs =
+      match envs with
+      | [] -> failwith "there should be at least the global environment"
+      | [ _ ] -> envs
+      | env :: _ -> if List.mem var nonlocals then dropLast1 envs else [ env ]
+    in
+    (match one_of (List.assoc_opt var <. ( ! )) assignable_envs with
+    | None ->
+        let env = List.hd envs in
+        env := (var, ref v) :: !env
+    | Some old_ref -> old_ref := v);
+    proceed
+  in
   match stmt with
-  | Exp e -> mzero @@ eval_exp env e
-  | Assign (Var var, e) -> (
-      let v = eval_exp env e in
-      match List.assoc_opt var env with
-      | None -> (None, (var, ref @@ eval_exp env e) :: env)
-      | Some old_ref ->
-          old_ref := v;
-          (None, env))
+  | Assign (Var var, e) -> assign envs var @@ eval_exp envs e
+  | Assign (Access (obj, prop), exp) -> (
+      let obj = eval_exp envs obj in
+      let value = eval_exp envs exp in
+      match obj with
+      | ObjectVal dict ->
+          (match List.assoc_opt prop !dict with
+          | Some prop -> prop := value
+          | None -> dict := (prop, ref value) :: !dict);
+          proceed
+      | _ -> failwith @@ "Cannot access to a non-object with a dot notation")
   | Assign (_, _) -> failwith @@ "cannot assign to operator"
+  | NonLocal var -> Either.Left (var :: nonlocals)
+  | Exp e ->
+      ignore @@ eval_exp envs e;
+      proceed
   | Seq (s1, s2) -> (
-      match eval_stmt env s1 with
-      | None, env -> eval_stmt env s2
-      | some, env -> (some, env))
+      match eval_stmt (nonlocals, envs) s1 with
+      | Either.Left nonlocals -> eval_stmt (nonlocals, envs) s2
+      | otherwise -> otherwise)
   | While (cond, stmt) -> (
-      match eval_exp env cond with
-      | BoolVal true -> eval_stmt env @@ Seq (stmt, While (cond, stmt))
-      | BoolVal false -> (None, env)
+      match eval_exp envs cond with
+      | BoolVal true ->
+          eval_stmt (nonlocals, envs) @@ Seq (stmt, While (cond, stmt))
+      | BoolVal false -> proceed
       | _ -> failwith @@ "expected boolean value")
-  | Skip -> (None, env)
-  | Return e -> (Some (eval_exp env e), env)
+  | If (cond, stmt) -> (
+      match eval_exp envs cond with
+      | BoolVal true -> eval_stmt (nonlocals, envs) stmt
+      | BoolVal false -> proceed
+      | _ -> failwith @@ "expected boolean value")
+  | Skip -> proceed
+  | Return e -> Either.Right (eval_exp envs e)
