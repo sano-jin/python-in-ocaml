@@ -11,7 +11,7 @@ type exp =
   | Lt of exp * exp  (** e < e *)
   | Gt of exp * exp  (** e > e *)
   | Lambda of string list * stmt  (** lambda x, y : {return x + y} *)
-  | App of exp * exp list  (** f(x1, ..., xn) *)
+  | App of exp * exp list  (** f (x1, ..., xn) *)
   | Access of exp * string  (** exp.exp *)
   | Class of string * string list * stmt  (** class  *)
 
@@ -22,7 +22,7 @@ and stmt =
   | While of exp * stmt  (** loop e.g. while (1 < x) { x := x + 1 } *)
   | If of exp * stmt  (** branch e.g. if (1 < x) { x := x + 1 } *)
   | Skip  (** skip *)
-  | NonLocal of string
+  | NonLocal of string  (** nonlocal e.g. nonlocal y *)
   | Return of exp  (** return e *)
 
 (** value *)
@@ -43,11 +43,19 @@ let rec string_of_value = function
   | BoolVal true -> "true"
   | BoolVal false -> "false"
   | StringVal str -> str
-  (*  | LambdaVal _ -> "lambda ..." *)
   | LambdaVal (vars, _, _) -> "lambda (" ^ String.concat ", " vars ^ "): ..."
-  | ObjectVal dict as self ->
-      let string_of_binding (var, value) =
-        var ^ " : "
-        ^ if !value == self then "__self__" else string_of_value !value
-      in
-      "[" ^ String.concat ", " (List.map string_of_binding !dict) ^ "]"
+  | ObjectVal _ as obj -> snd @@ string_of_object [] obj
+
+and string_of_object printed = function
+  | ObjectVal variables_ref as self ->
+      if List.memq self printed then (printed, "<~")
+      else
+        let vars, variable_refs = List.split !variables_ref in
+        let variables = List.map ( ! ) variable_refs in
+        let printeds, strs =
+          List.fold_left_map string_of_object (self :: printed) variables
+        in
+        let strs = List.combine vars strs in
+        let strs = List.map (fun (x, y) -> x ^ " : " ^ y) strs in
+        (printeds, "[" ^ String.concat ", " strs ^ "]")
+  | other -> (printed, string_of_value other)

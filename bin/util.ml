@@ -103,3 +103,14 @@ let remove_dup comparer list =
         else helper (h :: result) t
   in
   List.rev @@ helper [] list
+
+let rec unconses = function
+  | [] -> ([], [])
+  | [] :: ts -> unconses ts
+  | (h :: t) :: ts ->
+      let hs, ts = unconses ts in
+      (h :: hs, t :: ts)
+
+let rec zip_list lists =
+  let hs, ts = unconses lists in
+  hs :: zip_list ts

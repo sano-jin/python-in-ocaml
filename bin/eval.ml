@@ -19,10 +19,26 @@ let extract_mro_class_objs_ref =
   extract_object_variables_ref <. ( ! ) <. List.assoc "__mro__" <. ( ! )
   <. extract_object_variables_ref
 
+let mro_of_class base_classes =
+  let base_classes_of =
+    ( ! ) <. extract_object_variables_ref <. ( ! ) <. List.assoc "__bases__"
+    <. ( ! ) <. extract_object_variables_ref <. ( ! ) <. snd
+  in
+  let rec helper base_classes =
+    match List.map base_classes_of base_classes with
+    | [] -> []
+    | base_base_classes ->
+        base_classes :: (helper @@ List.concat base_base_classes)
+  in
+  remove_dup (fun (_, class_obj_ref1) (_, class_obj_ref2) ->
+      !class_obj_ref1 == !class_obj_ref2)
+  @@ List.concat @@ helper base_classes
+
 let object_variables =
   [
-    ("__init__", ref @@ LambdaVal ([ "<self>" ], Skip, []));
+    ("__init__", ref @@ LambdaVal ([ "_" ], Skip, []));
     ("__mro__", ref @@ ObjectVal (ref []));
+    ("__bases__", ref @@ ObjectVal (ref []));
   ]
 
 let object_fields = [ ("__class__", ref @@ ObjectVal (ref object_variables)) ]
@@ -37,22 +53,18 @@ let app_instance instance_obj = function
   | other -> other
 
 let extract_class_variable_opt class_fields prop =
-  match List.assoc_opt prop class_fields with
-  | Some prop -> Some prop
-  | None ->
-      let base_classes =
-        extract_object_variables_ref @@ ( ! )
-        @@ List.assoc "__mro__" class_fields
-      in
-      let extract_base_class_variable_opt =
-        List.assoc_opt prop <. ( ! ) <. extract_object_variables_ref <. ( ! )
-        <. snd
-      in
-      one_of extract_base_class_variable_opt !base_classes
+  let base_classes =
+    extract_object_variables_ref @@ ( ! ) @@ List.assoc "__mro__" class_fields
+  in
+  let extract_base_class_variable_opt =
+    List.assoc_opt prop <. ( ! ) <. extract_object_variables_ref <. ( ! ) <. snd
+  in
+  one_of extract_base_class_variable_opt !base_classes
 
 let extract_variable_opt obj prop =
   let obj_fields = !(extract_object_variables_ref obj) in
-  if List.mem_assoc "__class__" obj_fields then
+  let is_instance = List.mem_assoc "__class__" obj_fields in
+  if is_instance then
     match List.assoc_opt prop obj_fields with
     | Some prop -> Some !prop
     | None ->
@@ -60,14 +72,7 @@ let extract_variable_opt obj prop =
         <$> extract_class_variable_opt
               !(extract_class_variables_ref obj_fields)
               prop
-  else
-    match List.assoc_opt prop obj_fields with
-    | Some prop -> Some !prop
-    | None ->
-        app_instance obj <. ( ! )
-        <$> extract_class_variable_opt
-              !(extract_class_variables_ref obj_fields)
-              prop
+  else ( ! ) <$> extract_class_variable_opt obj_fields prop
 
 let seq_of_list = List.fold_left (fun acc stmt -> Seq (acc, stmt)) Skip
 
@@ -92,8 +97,6 @@ let rec eval_exp envs exp =
   | Lambda (args, body) -> LambdaVal (args, body, envs)
   | App (f, args) -> (
       match (f, List.map (eval_exp envs) args) with
-      | Var "copy", [ ObjectVal dict ] ->
-          ObjectVal (ref @@ List.map (second (ref <. ( ! ))) !dict)
       | Var "print", argVals ->
           print_endline @@ String.concat " " @@ List.map string_of_value argVals;
           VoidVal
@@ -111,7 +114,6 @@ let rec eval_exp envs exp =
           match eval_exp envs f with
           | LambdaVal _ as f -> beta_conv argVals f
           | ObjectVal class_fields_ref as class_obj ->
-              prerr_endline @@ "--- creating an instance object --- ";
               let init =
                 !(Option.get
                  @@ extract_class_variable_opt !class_fields_ref "__init__")
@@ -126,31 +128,29 @@ let rec eval_exp envs exp =
               ^ " is expected to be a class object or a function type"))
   | Access (obj, prop) -> (
       match eval_exp envs obj with
-      | ObjectVal _ as obj -> Option.get @@ extract_variable_opt obj prop
+      | ObjectVal _ as obj -> (
+          match extract_variable_opt obj prop with
+          | Some prop -> prop
+          | None ->
+              failwith @@ "No such field " ^ prop ^ " in object "
+              ^ string_of_value obj)
       | _ -> failwith @@ "Cannot access to a non-object with a dot notation")
   | Class (name, vars, body) -> (
+      let vars = if vars = [] then [ "object" ] else vars in
+      let base_classes = List.map (eval_exp envs <. fun var -> Var var) vars in
+      let bases = List.combine vars @@ List.map ref base_classes in
       let env = ref [] in
-      let vars = vars @ [ "object" ] in
-      let super_class_objs_of_var class_obj_name =
-        let class_obj = eval_exp envs (Var class_obj_name) in
-        (class_obj_name, ref class_obj)
-        :: List.map
-             (second (ref <. ( ! )))
-             !(extract_mro_class_objs_ref class_obj)
-      in
-      let mro =
-        remove_dup (fun (name1, _) (name2, _) -> name1 = name2)
-        @@ List.concat_map super_class_objs_of_var vars
-      in
+      let this_class_obj = ObjectVal env in
+      let mro = (name, ref this_class_obj) :: mro_of_class bases in
       env :=
-        [
-          ("__name__", ref @@ StringVal name);
-          ("__init__", ref @@ LambdaVal ([], Skip, env :: envs));
-          ("__mro__", ref @@ ObjectVal (ref mro));
-        ];
+        ("__name__", ref @@ StringVal name)
+        :: ("__init__", ref @@ LambdaVal ([ "_" ], Skip, []))
+        :: ("__mro__", ref @@ ObjectVal (ref mro))
+        :: ("__bases__", ref @@ ObjectVal (ref bases))
+        :: !env;
       match eval_stmt ([], env :: envs) body with
       | Either.Right _ -> failwith @@ "cannot return in class definition"
-      | Either.Left _ -> ObjectVal env)
+      | Either.Left _ -> this_class_obj)
 
 and eval_stmt (nonlocals, envs) stmt =
   let proceed = Either.Left nonlocals in

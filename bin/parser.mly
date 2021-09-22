@@ -46,10 +46,13 @@
 %token EOF 
 
 (* Operator associativity *)
+%nonassoc COL
 %nonassoc LT GT
 %left PLUS
 %left ASTERISK
 %left DOT
+%nonassoc LPAREN
+
 
 
 %start main
@@ -127,12 +130,9 @@ exp:
   | exp GT exp
     { Gt ($1, $3) }    
 
-  (* lambda x1, ..., xn COL { block } *)
-  | LAMBDA vars_inner COL INDENT block DEDENT
-     { Lambda ($2, $5) }
-
-  | LAMBDA vars_inner COL 
-     { Lambda ($2, Skip) }
+  (* lambda x1, ..., xn : { block } *)
+  | LAMBDA vars_inner COL exp
+     { Lambda ($2, Return $4) }
 
   (* application *)
   (* f (e1, ..., en) *)
@@ -164,41 +164,21 @@ stmt:
   | DEF VAR vars COL INDENT block DEDENT
     { Assign (Var $2, Lambda ($3, $6)) }
 
-  (* def f (x1, ..., xn): <nothing> *)
-  | DEF VAR vars COL
-    { Assign (Var $2, Lambda ($3, Skip)) }
-
   (* class MyClass: { block } *)
   | CLASS VAR COL INDENT block DEDENT
     { Assign (Var $2, Class ($2, [], $5)) }
 
-  (* class MyClass: <nothing> *)
-  | CLASS VAR COL 
-    { Assign (Var $2, Class ($2, [], Skip)) }
-
-  (* class MyClass: { block } *)
+  (* class MyClass (...): { block } *)
   | CLASS VAR vars COL INDENT block DEDENT
     { Assign (Var $2, Class ($2, $3, $6)) }
-
-  (* class MyClass: <nothing> *)
-  | CLASS VAR vars COL 
-    { Assign (Var $2, Class ($2, $3, Skip)) }
 
   (* while exp block *)
   | WHILE exp COL INDENT block DEDENT
    { While ($2, $5) }
 
-  (* while nothing *)
-  | WHILE exp COL 
-   { While ($2, Skip) }
-
   (* if exp block *)
   | IF exp COL INDENT block DEDENT
    { If ($2, $5) }
-
-  (* if nothing *)
-  | IF exp COL 
-   { If ($2, Skip) }
 
   | NONLOCAL VAR { NonLocal $2 }
 ;
