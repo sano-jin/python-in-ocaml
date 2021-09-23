@@ -35,11 +35,12 @@ let rec eval_exp envs exp =
           VoidVal
       | _, argVals -> (
           let beta_conv argVals = function
-            | LambdaVal (vars, body, envs') ->
+            | LambdaVal (vars, body, envs') -> (
                 let argVals = List.map ref argVals in
                 let new_env = ref @@ List.combine vars argVals in
-                Either.fold ~left:(const VoidVal) ~right:id
-                @@ eval_stmt ([], new_env :: envs') body
+                match eval_stmt [] (new_env :: envs') body with
+                | ReturnWith value -> value
+                | _ -> failwith "function ended without return")
             | other_val ->
                 failwith @@ string_of_value other_val
                 ^ " is expected to be a function type"
@@ -81,12 +82,12 @@ let rec eval_exp envs exp =
         :: ("__mro__", ref @@ ObjectVal (ref mro))
         :: ("__bases__", ref @@ ObjectVal (ref bases))
         :: !env;
-      match eval_stmt ([], env :: envs) body with
-      | Either.Right _ -> failwith @@ "cannot return in class definition"
-      | Either.Left _ -> this_class_obj)
+      match eval_stmt [] (env :: envs) body with
+      | ProceedWith _ -> this_class_obj
+      | _ -> failwith @@ "cannot return/continue/break in class definition")
 
-and eval_stmt (nonlocals, envs) stmt =
-  let proceed = Either.Left nonlocals in
+and eval_stmt nonlocals envs stmt =
+  let proceed = ProceedWith nonlocals in
   let assign envs var v =
     let assignable_envs =
       match envs with
@@ -114,24 +115,24 @@ and eval_stmt (nonlocals, envs) stmt =
           proceed
       | _ -> failwith @@ "Cannot access to a non-object with a dot notation")
   | Assign (_, _) -> failwith @@ "cannot assign to operator"
-  | NonLocal var -> Either.Left (var :: nonlocals)
+  | NonLocal var -> ProceedWith (var :: nonlocals)
   | Exp e ->
       ignore @@ eval_exp envs e;
       proceed
   | Seq (s1, s2) -> (
-      match eval_stmt (nonlocals, envs) s1 with
-      | Either.Left nonlocals -> eval_stmt (nonlocals, envs) s2
+      match eval_stmt nonlocals envs s1 with
+      | ProceedWith nonlocals -> eval_stmt nonlocals envs s2
       | otherwise -> otherwise)
   | While (cond, stmt) -> (
       match eval_exp envs cond with
       | BoolVal true ->
-          eval_stmt (nonlocals, envs) @@ Seq (stmt, While (cond, stmt))
+          eval_stmt nonlocals envs @@ Seq (stmt, While (cond, stmt))
       | BoolVal false -> proceed
       | _ -> failwith @@ "expected boolean value")
   | If (cond, stmt) -> (
       match eval_exp envs cond with
-      | BoolVal true -> eval_stmt (nonlocals, envs) stmt
+      | BoolVal true -> eval_stmt nonlocals envs stmt
       | BoolVal false -> proceed
       | _ -> failwith @@ "expected boolean value")
   | Skip -> proceed
-  | Return e -> Either.Right (eval_exp envs e)
+  | Return e -> ReturnWith (eval_exp envs e)

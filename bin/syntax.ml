@@ -59,3 +59,9 @@ and string_of_object printed = function
         let strs = List.map (fun (x, y) -> x ^ " : " ^ y) strs in
         (printeds, "[" ^ String.concat ", " strs ^ "]")
   | other -> (printed, string_of_value other)
+
+type ('a, 'b) result_with =
+  | ProceedWith of 'a
+  | ReturnWith of 'b
+  | ContinueWith of 'a
+  | BreakWith of 'a

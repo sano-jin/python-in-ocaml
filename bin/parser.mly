@@ -35,6 +35,7 @@
 %token TRUE		(* "true"   *)
 %token FALSE		(* "false"  *)
 %token WHILE		(* "while"  *)
+%token PASS		(* "pass"  *)
 %token IF		(* "if"  *)
 %token LAMBDA		(* "lambda" *)
 %token DEF		(* "def"    *)
@@ -157,13 +158,17 @@ stmt:
   | RETURN exp
     { Return $2 }
   
+  (* Pass *)
+  | PASS
+    { Skip }
+  
   (* Assignment *)
   | exp EQ exp
     { Assign ($1, $3) }
 
   (* def f (x1, ..., xn): { block } *)
   | DEF VAR vars COL INDENT block DEDENT
-    { Assign (Var $2, Lambda ($3, $6)) }
+    { Assign (Var $2, Lambda ($3, Seq ($6, Return (Var "None")))) }
 
   (* class MyClass: { block } *)
   | CLASS VAR COL INDENT block DEDENT
