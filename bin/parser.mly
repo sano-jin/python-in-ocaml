@@ -14,6 +14,8 @@
 %token ASTERISK		(* '*' *)
 %token LT		(* '<' *)
 %token GT		(* '>' *)
+%token EQEQ		(* "=="  *)
+%token NEQ		(* "!="  *)
 %token COL		(* ':' *)
 %token DOT		(* '.' *)
 %token COMMA		(* ',' *)
@@ -37,18 +39,27 @@
 %token WHILE		(* "while"  *)
 %token PASS		(* "pass"  *)
 %token IF		(* "if"  *)
+%token IS		(* "is"  *)
+%token NOT		(* "not"  *)
+%token ISNOT		(* "is not"  *)
 %token LAMBDA		(* "lambda" *)
 %token DEF		(* "def"    *)
 %token CLASS		(* "class"  *)
 %token NONLOCAL		(* "nonlocal"    *)
 %token RETURN		(* "return" *)
+%token TRY		(* "try" *)
+%token EXCEPT		(* "except" *)
+%token AS		(* "as" *)
+%token RAISE		(* "raise" *)
+%token BREAK		(* "break" *)
+%token CONTINUE		(* "continue" *)
 
 (* End of file *)
 %token EOF 
 
 (* Operator associativity *)
-%nonassoc COL
-%nonassoc LT GT
+%nonassoc COL 
+%nonassoc LT GT IS ISNOT EQEQ NEQ
 %left PLUS
 %left ASTERISK
 %left DOT
@@ -95,17 +106,14 @@ arg_exp:
   | LPAREN RPAREN { [] } 
 ;
   
-(* expression *)
-exp:
+
+(* unary expression *)
+unary_exp:
   | VAR
     { Var $1 }
     
   | INT
     { IntLit $1 }
-
-  (* Unary minus -i *)
-  | MINUS INT
-    { IntLit (- $2) }
   
   | TRUE
     { BoolLit true }
@@ -115,6 +123,25 @@ exp:
   
   | STRING
     { StringLit $1 }
+  
+  (* Parentheses *)
+  | LPAREN exp RPAREN
+    { $2 }
+;
+
+
+(* expression *)
+exp:
+  | unary_exp
+    { $1 }
+    
+  (* Unary minus -i *)
+  | MINUS INT
+    { IntLit (- $2) }
+  
+  (* Unary not  *)
+  | NOT unary_exp
+    { Not $2 }
   
   (* e1 + e2 *)
   | exp PLUS exp
@@ -132,6 +159,22 @@ exp:
   | exp GT exp
     { Gt ($1, $3) }    
 
+  (* e1 == e2 *)
+  | exp EQEQ exp
+    { Eq ($1, $3) }
+  
+  (* e1 != e2 *)
+  | exp NEQ exp
+    { Neq ($1, $3) }
+  
+  (* e1 is e2 *)
+  | exp IS exp
+    { Is ($1, $3) }
+  
+  (* e1 is not e2 *)
+  | exp ISNOT exp
+    { IsNot ($1, $3) }
+  
   (* lambda x1, ..., xn : { block } *)
   | LAMBDA vars_inner COL exp
      { Lambda ($2, Return $4) }
@@ -143,10 +186,6 @@ exp:
   (* dot notation *)
   (* exp.var *)
   | exp DOT VAR { Access ($1, $3) }
-
-  (* Parentheses *)
-  | LPAREN exp RPAREN
-    { $2 }
 ;
 
 (* statement *)
@@ -187,7 +226,13 @@ stmt:
    { If ($2, $5) }
 
   | NONLOCAL VAR { NonLocal $2 }
+
+  | RAISE exp { Raise $2 }
+
+  | BREAK { Break }
+  | CONTINUE { Continue }
 ;
+
     
 (* block *)
 block:       
@@ -196,5 +241,21 @@ block:
     { Seq ($1, $3) }
     
   | stmt DELIMITER { $1 }
+
+  | try_exceptions block { Seq ($1, $2) }
+  | try_exceptions { $1 }
 ;
 
+
+except:
+  | EXCEPT exp COL INDENT block DEDENT { ($2, "_", $5) }
+  | EXCEPT exp AS VAR COL INDENT block DEDENT { ($2, $4, $7) }
+
+exceptions:
+  | except DELIMITER exceptions  { $1 :: $3 }
+  | except DELIMITER { [ $1 ] }
+;
+
+try_exceptions:
+  | TRY COL INDENT block DEDENT DELIMITER exceptions { Try ($4, $7) }
+;

@@ -22,31 +22,42 @@ rule token = parse
       INT (int_of_string str) }
   
   (* Operators *)
-  | '+'       { PLUS }
-  | '-'       { MINUS }
-  | '*'       { ASTERISK }
-  | '<'       { LT }
-  | '>'       { GT }
-  | ':'       { COL }
-  | '.'       { DOT }
-  | ','       { COMMA }
-  | '='       { EQ }
+  | '+'               { PLUS }
+  | '-'               { MINUS }
+  | '*'               { ASTERISK }
+  | '<'               { LT }
+  | '>'               { GT }
+  | ':'               { COL }
+  | '.'               { DOT }
+  | ','               { COMMA }
+  | '='               { EQ }
+  | "=="              { EQEQ }
+  | "!="              { NEQ }
 
   (* Parentheses *)
-  | '('       { LPAREN }
-  | ')'       { RPAREN }
+  | '('               { LPAREN }
+  | ')'               { RPAREN }
   
   (* reserved names *)
-  | "true"     { TRUE }
-  | "false"    { FALSE }
-  | "while"    { WHILE }
-  | "pass"     { PASS }
-  | "if"       { IF }
-  | "lambda"   { LAMBDA }
-  | "def"      { DEF }
-  | "class"    { CLASS }
-  | "nonlocal" { NONLOCAL }
-  | "return"   { RETURN }
+  | "true"            { TRUE }
+  | "false"           { FALSE }
+  | "while"           { WHILE }
+  | "pass"            { PASS }
+  | "is"              { IS }
+  | "not"             { NOT }
+  | "is" space+ "not" { ISNOT }
+  | "if"              { IF }
+  | "lambda"          { LAMBDA }
+  | "def"             { DEF }
+  | "class"           { CLASS }
+  | "nonlocal"        { NONLOCAL }
+  | "return"          { RETURN }
+  | "try"             { TRY }
+  | "except"          { EXCEPT }
+  | "as"              { AS }
+  | "raise"           { RAISE }
+  | "break"           { BREAK }
+  | "continue"        { CONTINUE }
 
   (* variable *)
   | alpha alnum*

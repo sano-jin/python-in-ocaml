@@ -1,5 +1,7 @@
 (** syntax.ml *)
 
+open Util
+
 (** expression *)
 type exp =
   | Var of string  (** variable e.g. x *)
@@ -10,6 +12,11 @@ type exp =
   | Times of exp * exp  (** e * e *)
   | Lt of exp * exp  (** e < e *)
   | Gt of exp * exp  (** e > e *)
+  | Eq of exp * exp  (** e = e *)
+  | Neq of exp * exp  (** e != e *)
+  | Not of exp  (** not e *)
+  | Is of exp * exp  (** e is e *)
+  | IsNot of exp * exp  (** e is not e *)
   | Lambda of string list * stmt  (** lambda x, y : {return x + y} *)
   | App of exp * exp list  (** f (x1, ..., xn) *)
   | Access of exp * string  (** exp.exp *)
@@ -24,6 +31,11 @@ and stmt =
   | Skip  (** skip *)
   | NonLocal of string  (** nonlocal e.g. nonlocal y *)
   | Return of exp  (** return e *)
+  | Try of stmt * (exp * string * stmt) list
+      (** try e.g. try: ... except ... as ... : ... *)
+  | Raise of exp  (**  raise e.g. raise Exception() *)
+  | Break
+  | Continue
 
 (** value *)
 type value =
@@ -60,8 +72,19 @@ and string_of_object printed = function
         (printeds, "[" ^ String.concat ", " strs ^ "]")
   | other -> (printed, string_of_value other)
 
-type ('a, 'b) result_with =
+type ('a, 'b, 'c) result_with =
   | ProceedWith of 'a
   | ReturnWith of 'b
   | ContinueWith of 'a
   | BreakWith of 'a
+  | ExceptionWith of 'c
+
+let string_of_list string_of_elem list =
+  "[" ^ String.concat "; " (List.map string_of_elem list) ^ "]"
+
+let string_of_envs envs =
+  let string_of_binding (var, value_ref) =
+    "(" ^ var ^ ", " ^ string_of_value !value_ref ^ ")"
+  in
+  let string_of_env = string_of_list string_of_binding <. ( ! ) in
+  string_of_list string_of_env envs

@@ -1,2 +1,6 @@
-def None():
+class None():
+    pass
+
+
+class Exception():
     pass
