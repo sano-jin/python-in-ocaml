@@ -1,16 +1,16 @@
 (lang dune 2.8)
-(name go)
+(name py)
 (version 0.0.0)
 (generate_opam_files true)
 
-(source (github sano-jin/go-in-ocaml))
+(source (github sano-jin/python-in-ocaml))
 (license MIT)
 (authors "sano<sano@ueda.info.waseda.ac.jp>")
 (maintainers "sano<sano@ueda.info.waseda.ac.jp>")
 
 (package
- (name go)
- (synopsis "go")
+ (name py)
+ (synopsis "py")
  (description "A minimal interpreter")
  (depends
   ; (ounit :with-test)

@@ -5,9 +5,12 @@ open Util
 open Syntax
 open Object
 
+let base_env = [ ref [ ("object", object_class_obj_ref) ] ]
+
+let read_and_parse filename =
+  Parsing.parse_with_error filename @@ read_file filename
+
+let system = read_and_parse "/Users/sano/work/python-in-ocaml/lib/system.py"
+
 let () =
-  ignore
-  @@ eval_stmt
-       ([], [ ref [ ("pass", ref VoidVal); ("object", object_class_obj_ref) ] ])
-  @@ Parsing.parse_with_error
-  @@ read_file Sys.argv.(1)
+  ignore @@ eval_stmt [] base_env @@ Seq (system, read_and_parse Sys.argv.(1))

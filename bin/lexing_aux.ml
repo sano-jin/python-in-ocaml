@@ -3,6 +3,7 @@
 
 open Parser
 open Util
+open Util.OptionExtra
 
 (** インデントレベルのスタック *)
 let indent_level_stack =
@@ -38,4 +39,5 @@ let emit_indent indent_level =
     | None -> BAD_DEDENT
     | Some 0 -> DELIMITER
     | Some n ->
-        TOKENS (DELIMITER :: List.concat (repeat n [ DEDENT; DELIMITER ]))
+        TOKENS
+          (DELIMITER :: List.concat (ListExtra.repeat n [ DEDENT; DELIMITER ]))

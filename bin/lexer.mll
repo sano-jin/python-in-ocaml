@@ -37,15 +37,16 @@ rule token = parse
   | ')'       { RPAREN }
   
   (* reserved names *)
-  | "true"    { TRUE }
-  | "false"   { FALSE }
-  | "while"   { WHILE }
-  | "if"   { IF }
-  | "lambda"  { LAMBDA }
-  | "def"     { DEF }
-  | "class"     { CLASS }
-  | "nonlocal"     { NONLOCAL }
-  | "return"  { RETURN }
+  | "true"     { TRUE }
+  | "false"    { FALSE }
+  | "while"    { WHILE }
+  | "pass"     { PASS }
+  | "if"       { IF }
+  | "lambda"   { LAMBDA }
+  | "def"      { DEF }
+  | "class"    { CLASS }
+  | "nonlocal" { NONLOCAL }
+  | "return"   { RETURN }
 
   (* variable *)
   | alpha alnum*

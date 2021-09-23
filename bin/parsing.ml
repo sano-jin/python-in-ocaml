@@ -22,15 +22,16 @@ let token =
   helper
 
 (** parse : string -> stmt *)
-let parse_with_error str =
+let parse_with_error filename str =
   let lexbuf = Lexing.from_string @@ "\n" ^ str ^ "\n" in
   try Parser.main token lexbuf with
   | Lexer.SyntaxError msg ->
-      prerr_endline msg;
+      prerr_endline @@ msg ^ " in " ^ filename;
       exit (-1)
   | Parser.Error ->
       let pos = lexbuf.lex_curr_p in
-      Printf.eprintf "Syntax error at line %d, position %d.\n"
+      Printf.eprintf "Syntax error at line %d, position %d in %s\n"
         (pred pos.pos_lnum)
-        (pos.pos_cnum - pos.pos_bol + 1);
+        (pos.pos_cnum - pos.pos_bol + 1)
+        filename;
       exit (-1)

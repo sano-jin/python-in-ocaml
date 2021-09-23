@@ -1,2 +1,2 @@
 #!/bin/bash
-opam exec -- dune exec go -- $@
+opam exec -- dune exec py -- $@
