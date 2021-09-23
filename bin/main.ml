@@ -7,7 +7,8 @@ open Object
 
 let base_env = [ ref [ ("object", object_class_obj_ref) ] ]
 
-let read_and_parse = Parsing.parse_with_error <. read_file
+let read_and_parse filename =
+  Parsing.parse_with_error filename @@ read_file filename
 
 let system = read_and_parse "/Users/sano/work/python-in-ocaml/lib/system.py"
 
