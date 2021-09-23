@@ -5,5 +5,6 @@
 
 (executable
  (name main)
- (public_name go)
+ (public_name py)
+ (libraries py.util)
  )

@@ -1,10 +1,23 @@
 # python-in-ocaml
+_Experimental_
 
 A very small subset of Python written in OCaml.
 
-## How to use
+## Getting Started
+### Prerequisites
+- [opam](https://opam.ocaml.org/)
 
-run `./run example/sample1.go`
+### Installation
+```bash
+git clone https://github.com/sano-jin/python-in-ocaml
+cd python-in-ocaml
+opam install .
+dune build
+```
+
+## Usage
+
+run `./run example/sample1.py`
 
 
 ## Modules

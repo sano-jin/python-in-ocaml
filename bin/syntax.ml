@@ -60,8 +60,9 @@ and string_of_object printed = function
         (printeds, "[" ^ String.concat ", " strs ^ "]")
   | other -> (printed, string_of_value other)
 
-type ('a, 'b) result_with =
+type ('a, 'b, 'c) result_with =
   | ProceedWith of 'a
   | ReturnWith of 'b
   | ContinueWith of 'a
   | BreakWith of 'a
+  | ExceptionWith of 'c

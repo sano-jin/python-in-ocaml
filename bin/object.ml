@@ -2,6 +2,7 @@
 
 open Syntax
 open Util
+open Util.OptionExtra
 
 (** 全てのオブジェクトの基底クラス *)
 let object_class_obj_ref =
@@ -32,7 +33,7 @@ let mro_of_class base_classes =
     | base_base_classes ->
         base_classes :: (helper @@ List.concat base_base_classes)
   in
-  remove_dup (fun (_, class_obj_ref1) (_, class_obj_ref2) ->
+  ListExtra.remove_dup (fun (_, class_obj_ref1) (_, class_obj_ref2) ->
       !class_obj_ref1 == !class_obj_ref2)
   @@ List.concat @@ helper base_classes
 
@@ -42,7 +43,7 @@ let extract_class_variable_opt class_fields prop =
   let extract_base_class_variable_opt =
     Option.map ( ! ) <. List.assoc_opt prop <. dir <. ( ! ) <. snd
   in
-  one_of extract_base_class_variable_opt base_classes
+  OptionExtra.one_of extract_base_class_variable_opt base_classes
 
 let dir_class = dir_prop "__class__"
 
