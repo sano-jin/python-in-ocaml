@@ -27,7 +27,7 @@ and stmt =
   | Assign of exp * exp  (** assignment e.g. x := 1 + 2 * y *)
   | Seq of stmt * stmt  (** sequence e.g. x := 2; y := x + 1 *)
   | While of exp * stmt  (** loop e.g. while (1 < x) { x := x + 1 } *)
-  | If of exp * stmt  (** branch e.g. if (1 < x) { x := x + 1 } *)
+  | If of exp * stmt * stmt  (** branch e.g. if (1 < x) { x := x + 1 } *)
   | Skip  (** skip *)
   | NonLocal of string  (** nonlocal e.g. nonlocal y *)
   | Return of exp  (** return e *)

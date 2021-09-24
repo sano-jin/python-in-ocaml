@@ -39,6 +39,8 @@
 %token WHILE		(* "while"  *)
 %token PASS		(* "pass"  *)
 %token IF		(* "if"  *)
+%token ELIF		(* "elif"  *)
+%token ELSE		(* "else"  *)
 %token IS		(* "is"  *)
 %token NOT		(* "not"  *)
 %token ISNOT		(* "is not"  *)
@@ -221,10 +223,6 @@ stmt:
   | WHILE exp COL INDENT block DEDENT
    { While ($2, $5) }
 
-  (* if exp block *)
-  | IF exp COL INDENT block DEDENT
-   { If ($2, $5) }
-
   | NONLOCAL VAR { NonLocal $2 }
 
   | RAISE exp { Raise $2 }
@@ -242,6 +240,9 @@ block:
     
   | stmt DELIMITER { $1 }
 
+  | if_elifs_else block { Seq($1, $2) }
+  | if_elifs_else { $1 }
+
   | try_exceptions block { Seq ($1, $2) }
   | try_exceptions { $1 }
 ;
@@ -258,4 +259,40 @@ exceptions:
 
 try_exceptions:
   | TRY COL INDENT block DEDENT DELIMITER exceptions { Try ($4, $7) }
+;
+
+
+if_elifs_else:
+  (* if exp block *)
+  | IF exp COL INDENT block DEDENT DELIMITER elifs
+   { If ($2, $5, $8) }
+
+  (* if exp block *)
+  | IF exp COL INDENT block DEDENT DELIMITER else_
+   { If ($2, $5, $8) }
+
+  (* if exp block *)
+  | IF exp COL INDENT block DEDENT DELIMITER
+   { If ($2, $5, Skip) }
+;
+
+
+elifs:
+  (* elif exp block *)
+  | ELIF exp COL INDENT block DEDENT DELIMITER
+   { If ($2, $5, Skip) }
+
+  (* elif exp block *)
+  | ELIF exp COL INDENT block DEDENT DELIMITER else_
+   { If ($2, $5, $8) }
+
+  (* elif exp block *)
+  | ELIF exp COL INDENT block DEDENT DELIMITER elifs
+   { If ($2, $5, $8) }
+;
+
+else_:
+  (* else: block *)
+  | ELSE COL INDENT block DEDENT DELIMITER
+   { $4 }
 ;

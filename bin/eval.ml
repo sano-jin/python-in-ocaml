@@ -168,14 +168,14 @@ and eval_stmt nonlocals envs stmt =
           | BreakWith _ -> proceed
           | ContinueWith _ | ProceedWith _ ->
               eval_stmt nonlocals envs @@ While (cond, stmt)
-          | except -> except)
+          | other -> other)
       | BoolVal false -> proceed
       | _ -> failwith @@ "expected boolean value")
-  | If (cond, stmt) -> (
+  | If (cond, s1, s2) -> (
       let* cond_value = eval_exp envs cond in
       match cond_value with
-      | BoolVal true -> eval_stmt nonlocals envs stmt
-      | BoolVal false -> proceed
+      | BoolVal true -> eval_stmt nonlocals envs s1
+      | BoolVal false -> eval_stmt nonlocals envs s2
       | _ -> failwith @@ "expected boolean value")
   | Skip -> proceed
   | Return e ->

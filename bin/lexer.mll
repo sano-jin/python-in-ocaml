@@ -47,6 +47,8 @@ rule token = parse
   | "not"             { NOT }
   | "is" space+ "not" { ISNOT }
   | "if"              { IF }
+  | "elif"            { ELIF }
+  | "else"            { ELSE }
   | "lambda"          { LAMBDA }
   | "def"             { DEF }
   | "class"           { CLASS }
