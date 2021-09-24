@@ -21,6 +21,7 @@ type exp =
   | App of exp * exp list  (** f (x1, ..., xn) *)
   | Access of exp * string  (** exp.exp *)
   | Class of string * string list * stmt  (** class  *)
+  | Open of string  (** open a file and return the clas object of the module *)
 
 and stmt =
   | Exp of exp
@@ -88,3 +89,12 @@ let string_of_envs envs =
   in
   let string_of_env = string_of_list string_of_binding <. ( ! ) in
   string_of_list string_of_env envs
+
+(** some helper functions *)
+let extract_int = function
+  | IntVal i -> i
+  | _ -> failwith @@ "type error. expected int"
+
+let extract_bool = function
+  | BoolVal b -> b
+  | _ -> failwith @@ "type error. expected bool"

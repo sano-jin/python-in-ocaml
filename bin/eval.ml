@@ -4,15 +4,7 @@ open Syntax
 open Util
 open Object
 open Util.DebugPrint
-
-(** some helper functions *)
-let extract_int = function
-  | IntVal i -> i
-  | _ -> failwith @@ "type error. expected int"
-
-let extract_bool = function
-  | BoolVal b -> b
-  | _ -> failwith @@ "type error. expected bool"
+open Parsing
 
 (** The evaluator *)
 let rec eval_exp envs exp =
@@ -116,6 +108,9 @@ let rec eval_exp envs exp =
       | _ ->
           failwith
           @@ "cannot return/continue/break/throw exception in class definition")
+  | Open filename ->
+      let filepath = Filename.dirname Sys.argv.(1) ^ "/" ^ filename ^ ".py" in
+      read_and_run filepath filename
 
 and eval_stmt nonlocals envs stmt =
   let proceed = ProceedWith nonlocals in
@@ -203,3 +198,25 @@ and eval_stmt nonlocals envs stmt =
       ExceptionWith v
   | Break -> BreakWith nonlocals
   | Continue -> ContinueWith nonlocals
+
+and system_stmt =
+  let home_path = Sys.getenv "PYTHON_IN_OCAML_HOME" in
+  read_and_parse @@ home_path ^ "/lib/system.py"
+
+and read_and_run filepath module_name =
+  let base_env = ref [] in
+  let this_obj = ObjectVal base_env in
+  let mro = [ (module_name, ref this_obj); ("object", object_class_obj_ref) ] in
+  base_env :=
+    [
+      ("object", object_class_obj_ref);
+      ("None", ref VoidVal);
+      ("__mro__", ref @@ ObjectVal (ref mro));
+      ("__name__", ref @@ StringVal module_name);
+    ];
+  match
+    eval_stmt [] [ base_env ] @@ Seq (system_stmt, read_and_parse filepath)
+  with
+  | ProceedWith _ | ReturnWith _ -> Ok this_obj
+  | ExceptionWith err -> Error err
+  | BreakWith _ | ContinueWith _ -> failwith "file ended with break/continue"

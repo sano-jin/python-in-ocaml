@@ -60,6 +60,8 @@ rule token = parse
   | "raise"           { RAISE }
   | "break"           { BREAK }
   | "continue"        { CONTINUE }
+  | "import"          { IMPORT }
+  | "from"            { FROM }
 
   (* variable *)
   | alpha alnum*

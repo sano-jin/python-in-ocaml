@@ -2,6 +2,7 @@
 
 open Lexing
 open Parser
+open Util
 
 (** [TOKENS] を無数の [token] に展開しながら出力する tokenizer *)
 let token =
@@ -35,3 +36,5 @@ let parse_with_error filename str =
         (pos.pos_cnum - pos.pos_bol + 1)
         filename;
       exit (-1)
+
+let read_and_parse filename = parse_with_error filename @@ read_file filename

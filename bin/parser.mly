@@ -2,6 +2,8 @@
      
 %{
   open Syntax
+
+  let seq_of_list = List.fold_left (fun acc stmt -> Seq (acc, stmt)) Skip
 %}
 
 %token <string> VAR	(* x, y, abc, ... *)
@@ -55,6 +57,8 @@
 %token RAISE		(* "raise" *)
 %token BREAK		(* "break" *)
 %token CONTINUE		(* "continue" *)
+%token IMPORT		(* "import" *)
+%token FROM		(* "from" *)
 
 (* End of file *)
 %token EOF 
@@ -77,6 +81,8 @@
 main:
   | DELIMITER block EOF { $2 }
   | INDENT block DEDENT DELIMITER EOF { $2 }
+  | DELIMITER imports block EOF { Seq($2, $3) }
+  | INDENT imports block DEDENT DELIMITER EOF { Seq($2, $3) }
   | BAD_DEDENT { failwith "bad dedent"} 
   | TOKENS { failwith "tokens should be exploded"}
 ;
@@ -296,3 +302,38 @@ else_:
   | ELSE COL INDENT block DEDENT DELIMITER
    { $4 }
 ;
+
+
+imports:
+  (* import1 import2 ... *)
+  | import DELIMITER imports
+    { Seq ($1, $3) }
+    
+  | import DELIMITER { $1 }
+;
+
+import:
+ (** import <module_name> *)
+ | IMPORT VAR
+  { Assign(Var $2, Open $2) }
+
+ (** from <var> import <module_name> *)
+ | FROM VAR IMPORT importing_values
+  { let module_name = "<" ^ $2 ^ ">" in
+    let binding_of (var1, var2) =
+     Assign(Var var1, Access(Var module_name, var2))
+    in
+    let binds = seq_of_list @@ List.map binding_of $4 in
+    Seq(Assign(Var module_name, Open $2), binds)
+  }
+;
+
+importing_values:
+ | VAR COMMA importing_values { ($1, $1) :: $3 }
+ | VAR { [ ($1, $1) ] }
+
+ | VAR AS VAR COMMA importing_values { ($3, $1) :: $5 }
+ | VAR AS VAR { [ ($3, $1) ] }
+;
+
+
