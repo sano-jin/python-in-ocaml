@@ -10,32 +10,39 @@ open Parsing
 let rec eval_exp envs exp =
   let intVal = Result.map @@ fun i -> IntVal i in
   let boolVal = Result.map @@ fun b -> BoolVal b in
+  let stringVal = Result.map @@ fun i -> StringVal i in
   let ( let* ) = Result.bind in
   let ( let+ ) x f = Result.map f x in
+  let eval_helper env = eval_exp (env :: envs) in
   let eval_binop f e1 e2 =
     let* v1 = eval_exp envs e1 in
     let+ v2 = eval_exp envs e2 in
     f v1 v2
   in
-  let eval_binop_int f =
-    eval_binop (fun v1 v2 -> f (extract_int v1) (extract_int v2))
+  let eval_builtin_binop f =
+    Result.join <.. eval_binop @@ curry @@ f eval_helper
+  in
+  let eval_builtin_uniop f e =
+    let* v = eval_exp envs e in
+    f eval_helper v
   in
   match exp with
   | Var var -> Env.lookup envs var
   | IntLit num -> Ok (IntVal num)
   | BoolLit bool -> Ok (BoolVal bool)
   | StringLit str -> Ok (StringVal str)
-  | Not e1 ->
-      let+ b = eval_exp envs e1 in
-      BoolVal (not @@ extract_bool b)
-  | Plus (e1, e2) -> intVal @@ eval_binop_int ( + ) e1 e2
-  | Times (e1, e2) -> intVal @@ eval_binop_int ( * ) e1 e2
-  | Lt (e1, e2) -> boolVal @@ eval_binop_int ( < ) e1 e2
-  | Gt (e1, e2) -> boolVal @@ eval_binop_int ( > ) e1 e2
-  | Eq (e1, e2) -> boolVal @@ eval_binop ( = ) e1 e2
-  | Neq (e1, e2) -> boolVal @@ eval_binop ( <> ) e1 e2
+  | Not e1 -> eval_builtin_uniop Builtin.__not__ e1
+  | Plus (e1, e2) -> eval_builtin_binop Builtin.__add__ e1 e2
+  | Times (e1, e2) -> eval_builtin_binop Builtin.__mul__ e1 e2
+  | Lt (e1, e2) -> eval_builtin_binop Builtin.__lt__ e1 e2
+  | Gt (e1, e2) -> eval_builtin_binop Builtin.__gt__ e1 e2
+  | Eq (e1, e2) -> eval_builtin_binop Builtin.__eq__ e1 e2
+  | Neq (e1, e2) -> eval_builtin_binop Builtin.__neq__ e1 e2
   | Is (e1, e2) -> boolVal @@ eval_binop ( == ) e1 e2
   | IsNot (e1, e2) -> boolVal @@ eval_binop ( != ) e1 e2
+  | IntValOf e -> intVal @@ eval_builtin_uniop Builtin.__int__ e
+  | BoolValOf e -> boolVal @@ eval_builtin_uniop Builtin.__bool__ e
+  | StrValOf e -> stringVal @@ eval_builtin_uniop Builtin.__str__ e
   | Lambda (args, body) -> Ok (LambdaVal (args, body, envs))
   | App (f, args) -> (
       let* argVals = ResultExtra.map_results (eval_exp envs) args in
@@ -76,6 +83,16 @@ let rec eval_exp envs exp =
               ^ " is expected to be a class object or a function type"))
   | Access (obj, prop) -> (
       let* obj = eval_exp envs obj in
+      let access_non_obj class_name value =
+        let* class_obj = eval_exp envs @@ Var class_name in
+        if prop = "__class__" then Ok class_obj
+        else
+          match extract_class_variable_opt (dir class_obj) prop with
+          | Some class_variable -> Ok (app_instance value class_variable)
+          | None ->
+              failwith @@ "No such field " ^ prop ^ " in object "
+              ^ string_of_value obj
+      in
       match obj with
       | ObjectVal _ as obj -> (
           match extract_variable_opt obj prop with
@@ -83,8 +100,12 @@ let rec eval_exp envs exp =
           | None ->
               failwith @@ "No such field " ^ prop ^ " in object "
               ^ string_of_value obj)
-      | _ -> failwith @@ "Cannot access to a non-object with a dot notation")
-  | Class (name, vars, body) -> (
+      | VoidVal -> access_non_obj "None" obj
+      | IntVal _ -> access_non_obj "int" obj
+      | BoolVal _ -> access_non_obj "boolean" obj
+      | StringVal _ -> access_non_obj "string" obj
+      | LambdaVal _ -> access_non_obj "function" obj
+    )  | Class (name, vars, body) -> (
       let vars = if vars = [] then [ "object" ] else vars in
       let* base_classes = ResultExtra.map_results (Env.lookup envs) vars in
       let bases = List.combine vars @@ List.map ref base_classes in

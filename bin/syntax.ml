@@ -22,6 +22,9 @@ type exp =
   | Access of exp * string  (** exp.exp *)
   | Class of string * string list * stmt  (** class  *)
   | Open of string  (** open a file and return the clas object of the module *)
+  | IntValOf of exp  (** convert to int *)
+  | BoolValOf of exp  (** convert to bool *)
+  | StrValOf of exp  (** convert to str *)
 
 and stmt =
   | Exp of exp
@@ -98,5 +101,9 @@ let extract_int = function
 let extract_bool = function
   | BoolVal b -> b
   | _ -> failwith @@ "type error. expected bool"
+
+let extract_string = function
+  | StringVal str -> str
+  | _ -> failwith @@ "type error. expected string"
 
 let seq_of_list = List.fold_left (fun acc stmt -> Seq (acc, stmt)) Skip
