@@ -21,10 +21,7 @@ let rec eval_exp envs exp =
     eval_binop (fun v1 v2 -> f (extract_int v1) (extract_int v2))
   in
   match exp with
-  | Var var -> (
-      match OptionExtra.one_of (List.assoc_opt var <. ( ! )) envs with
-      | Some v -> Ok !v
-      | None -> failwith @@ "unbound variable " ^ var)
+  | Var var -> Env.lookup envs var
   | IntLit num -> Ok (IntVal num)
   | BoolLit bool -> Ok (BoolVal bool)
   | StringLit str -> Ok (StringVal str)
@@ -89,20 +86,9 @@ let rec eval_exp envs exp =
       | _ -> failwith @@ "Cannot access to a non-object with a dot notation")
   | Class (name, vars, body) -> (
       let vars = if vars = [] then [ "object" ] else vars in
-      let* base_classes =
-        ResultExtra.map_results (eval_exp envs <. fun var -> Var var) vars
-      in
+      let* base_classes = ResultExtra.map_results (Env.lookup envs) vars in
       let bases = List.combine vars @@ List.map ref base_classes in
-      let env = ref [] in
-      let this_class_obj = ObjectVal env in
-      let mro = (name, ref this_class_obj) :: mro_of_class bases in
-      env :=
-        ("__name__", ref @@ StringVal name)
-        :: ( "__init__",
-             ref @@ LambdaVal ([ "_" ], Return (Var "None"), env :: envs) )
-        :: ("__mro__", ref @@ ObjectVal (ref mro))
-        :: ("__bases__", ref @@ ObjectVal (ref bases))
-        :: !env;
+      let env, this_class_obj = init_class_obj name bases [] envs in
       match eval_stmt [] (env :: envs) body with
       | ProceedWith _ -> Ok this_class_obj
       | _ ->
@@ -199,24 +185,14 @@ and eval_stmt nonlocals envs stmt =
   | Break -> BreakWith nonlocals
   | Continue -> ContinueWith nonlocals
 
-and system_stmt =
-  let home_path = Sys.getenv "PYTHON_IN_OCAML_HOME" in
-  read_and_parse @@ home_path ^ "/lib/system.py"
-
 and read_and_run filepath module_name =
-  let base_env = ref [] in
-  let this_obj = ObjectVal base_env in
-  let mro = [ (module_name, ref this_obj); ("object", object_class_obj_ref) ] in
-  base_env :=
-    [
-      ("object", object_class_obj_ref);
-      ("None", ref VoidVal);
-      ("__mro__", ref @@ ObjectVal (ref mro));
-      ("__name__", ref @@ StringVal module_name);
-    ];
+  let init_binding = [ ("object", object_class_obj_ref) ] in
+  let base_env, this_module_obj =
+    init_class_obj module_name init_binding init_binding []
+  in
   match
-    eval_stmt [] [ base_env ] @@ Seq (system_stmt, read_and_parse filepath)
+    eval_stmt [] [ base_env ] @@ Seq (Env.system_stmt, read_and_parse filepath)
   with
-  | ProceedWith _ | ReturnWith _ -> Ok this_obj
+  | ProceedWith _ | ReturnWith _ -> Ok this_module_obj
   | ExceptionWith err -> Error err
   | BreakWith _ | ContinueWith _ -> failwith "file ended with break/continue"

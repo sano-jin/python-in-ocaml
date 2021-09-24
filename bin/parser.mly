@@ -2,8 +2,6 @@
      
 %{
   open Syntax
-
-  let seq_of_list = List.fold_left (fun acc stmt -> Seq (acc, stmt)) Skip
 %}
 
 %token <string> VAR	(* x, y, abc, ... *)

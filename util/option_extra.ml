@@ -32,3 +32,14 @@ let ( <::> ) h t = List.cons h <$> t
 let rec foldM f acc = function
   | [] -> Some acc
   | h :: t -> f acc h >>= flip (foldM f) t
+
+(** monadic [List.map] 
+- f を適用して，Some が帰ってきたら map を続ける．
+- もし一度でも None が帰ってきたら，None を返す
+*)
+let rec map_somes f = function
+  | [] -> Some []
+  | h :: t ->
+      let* h = f h in
+      let+ t = map_somes f t in
+      h :: t

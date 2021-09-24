@@ -67,9 +67,29 @@ let extract_variable_opt obj prop =
         <$> extract_class_variable_opt (dir_class obj_fields) prop
   else extract_class_variable_opt obj_fields prop
 
+(** [sub_class_inst_obj] が [super_obj] またはこのサブクラスの
+    インスタンスオブジェクトであることを確かめる *)
 let is_subclass_of sub_class_inst_obj super_obj =
   let base_classes =
     List.map (( ! ) <. snd)
     @@ dir_prop "__mro__" @@ dir_prop "__class__" @@ dir sub_class_inst_obj
   in
   List.exists (( == ) super_obj) base_classes
+
+(** クラスオブジェクトのフィールドの初期値とクラスオブジェクトを生成して返す．
+@arg name このクラスの名前
+@arg bases base class とその名前の組のリスト
+@arg init_env フィールドの初期状態
+@arg envs 親元の環境
+*)
+let init_class_obj name bases init_env envs =
+  let env = ref init_env in
+  let this_class_obj = ObjectVal env in
+  let mro = (name, ref this_class_obj) :: mro_of_class bases in
+  env :=
+    ("__name__", ref @@ StringVal name)
+    :: ("__init__", ref @@ LambdaVal ([ "_" ], Return (Var "None"), env :: envs))
+    :: ("__mro__", ref @@ ObjectVal (ref mro))
+    :: ("__bases__", ref @@ ObjectVal (ref bases))
+    :: !env;
+  (env, this_class_obj)

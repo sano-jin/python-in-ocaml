@@ -98,3 +98,5 @@ let extract_int = function
 let extract_bool = function
   | BoolVal b -> b
   | _ -> failwith @@ "type error. expected bool"
+
+let seq_of_list = List.fold_left (fun acc stmt -> Seq (acc, stmt)) Skip

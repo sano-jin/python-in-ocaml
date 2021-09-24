@@ -1,8 +1,8 @@
-# main.py
-from greeting import hello
+print('>>> greeting.py')
 
-print('>>> main.py')
-    
+def hello():
+    print('Hello')
+
 if __name__ == '__main__':
     print('>>> This is the main program')
     hello()
