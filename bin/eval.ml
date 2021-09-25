@@ -3,14 +3,10 @@
 open Syntax
 open Util
 open Object
-open Util.DebugPrint
 open Parsing
 
 (** The evaluator *)
 let rec eval_exp envs exp =
-  let intVal = Result.map @@ fun i -> IntVal i in
-  let boolVal = Result.map @@ fun b -> BoolVal b in
-  let stringVal = Result.map @@ fun i -> StringVal i in
   let ( let* ) = Result.bind in
   let ( let+ ) x f = Result.map f x in
   let eval_helper env = eval_exp (env :: envs) in
@@ -47,17 +43,26 @@ let rec eval_exp envs exp =
   | App (f, args) -> (
       let* argVals = ResultExtra.map_results (eval_exp envs) args in
       match (f, argVals) with
-      | Var "print", argVals ->
-          print_endline @@ String.concat " " @@ List.map string_of_value argVals;
-          eval_exp envs @@ Var "None"
       | _, argVals -> (
           let beta_conv argVals = function
             | LambdaVal (vars, body, envs') -> (
-                let argVals = List.map ref argVals in
-                let new_env = ref @@ List.combine vars argVals in
-                match
-                  eval_stmt [] (new_env :: envs') body >>> incr_indent ()
-                with
+                let* none_obj = eval_exp envs @@ Var "None" in
+                let rec combine_vars = function
+                  | var :: vars, value :: values ->
+                      let+ rest = combine_vars (vars, values) in
+                      (var, ref value) :: rest
+                  | var :: vars, [] ->
+                      let+ rest = combine_vars (vars, []) in
+                      (var, ref none_obj) :: rest
+                  | [], [] -> Ok []
+                  | [], _ ->
+                      failwith @@ "unmatched arity: expected "
+                      ^ string_of_int (List.length vars)
+                      ^ " but got "
+                      ^ string_of_int (List.length argVals)
+                in
+                let* new_env = combine_vars (vars, argVals) in
+                match eval_stmt [] (ref new_env :: envs') body with
                 | ReturnWith value -> Ok value
                 | ExceptionWith excp -> Error excp
                 | _ -> failwith "function ended without return")
@@ -68,6 +73,17 @@ let rec eval_exp envs exp =
           let* f = eval_exp envs f in
           match f with
           | LambdaVal _ as f -> beta_conv argVals f
+          | SystemFunVal "print" ->
+              let* arg_strs =
+                ResultExtra.map_results (Builtin.__str__ eval_helper) argVals
+              in
+              print_endline @@ String.concat " " arg_strs;
+              eval_exp envs @@ Var "None"
+          | SystemFunVal "repl" ->
+              let repl_str =
+                String.concat " " @@ List.map string_of_value argVals
+              in
+              Ok (StringVal repl_str)
           | ObjectVal class_fields_ref as class_obj ->
               let init =
                 Option.get
@@ -105,7 +121,11 @@ let rec eval_exp envs exp =
       | BoolVal _ -> access_non_obj "boolean" obj
       | StringVal _ -> access_non_obj "string" obj
       | LambdaVal _ -> access_non_obj "function" obj
-    )  | Class (name, vars, body) -> (
+      | SystemFunVal _ ->
+          prerr_endline
+          @@ "accessing a property of a built_in_function_or_method";
+          access_non_obj "built_in_function_or_method" obj)
+  | Class (name, vars, body) -> (
       let vars = if vars = [] then [ "object" ] else vars in
       let* base_classes = ResultExtra.map_results (Env.lookup envs) vars in
       let bases = List.combine vars @@ List.map ref base_classes in
@@ -207,9 +227,10 @@ and eval_stmt nonlocals envs stmt =
   | Continue -> ContinueWith nonlocals
 
 and read_and_run filepath module_name =
-  let init_binding = [ ("object", object_class_obj_ref) ] in
   let base_env, this_module_obj =
-    init_class_obj module_name init_binding init_binding []
+    init_class_obj module_name
+      [ ("object", Env.object_class_obj_ref) ]
+      Env.init_bindings []
   in
   match
     eval_stmt [] [ base_env ] @@ Seq (Env.system_stmt, read_and_parse filepath)

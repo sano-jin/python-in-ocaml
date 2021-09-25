@@ -4,20 +4,12 @@ open Syntax
 open Util
 open Util.OptionExtra
 
-(** 全てのオブジェクトの基底クラス *)
-let object_class_obj_ref =
-  let variables =
-    [
-      ("__init__", ref @@ LambdaVal ([ "_" ], Return (Var "None"), []));
-      ("__mro__", ref @@ ObjectVal (ref []));
-      ("__bases__", ref @@ ObjectVal (ref []));
-    ]
-  in
-  ref @@ ObjectVal (ref variables)
-
 (** extract_object_variables_ref *)
 let dir = function
   | ObjectVal obj_variables_ref -> !obj_variables_ref
+  | SystemFunVal name ->
+      failwith @@ "__dir__ ing built_in_function_or_method " ^ name
+      ^ ". This expected to be an object"
   | value -> failwith @@ string_of_value value ^ " is expected to be an object"
 
 let dir_prop = dir <. ( ! ) <.. List.assoc
@@ -52,14 +44,16 @@ let app_instance instance_obj = function
       LambdaVal (vars, body, ref ((var, ref instance_obj) :: !env) :: envs)
   | other -> other
 
+(** オブジェクトがインスタンスオブジェクトか，クラスオブジェクトかを取得する *)
+let is_instance = List.mem_assoc "__class__"
+
 (** オブジェクトからプロパティを取得する．
 インスタンスオブジェクトでクラスのメソッドを取得した場合は，そのインスタンスオブジェクトを部分適用しておく．
 e.g. [inst_obj.f(...args) ---> inst_obj.__class__.f(inst_obj, ...args)]
  *)
 let extract_variable_opt obj prop =
   let obj_fields = dir obj in
-  let is_instance = List.mem_assoc "__class__" obj_fields in
-  if is_instance then
+  if is_instance obj_fields then
     match List.assoc_opt prop obj_fields with
     | Some prop -> Some !prop
     | None ->

@@ -24,19 +24,19 @@ class int():
     def __neq__(self, other):
         return self != other
 
-    def __str__(self, other):
+    def __str__(self):
         return str(self)
 
-    def __int__(self, other):
+    def __int__(self):
         return bool(self)
 
-    def __bool__(self, other):
+    def __bool__(self):
         return bool(self)
 
 
 
 class boolean():
-    def __not__(self, other):
+    def __not__(self):
         return not self
 
     def __eq__(self, other):
@@ -45,13 +45,13 @@ class boolean():
     def __neq__(self, other):
         return self != other
 
-    def __str__(self, other):
+    def __str__(self):
         return str(self)
 
-    def __int__(self, other):
+    def __int__(self):
         return bool(self)
 
-    def __bool__(self, other):
+    def __bool__(self):
         return bool(self)
 
 
@@ -74,16 +74,21 @@ class string():
     def __neq__(self, other):
         return self != other
 
-    def __str__(self, other):
+    def __str__(self):
         return str(self)
 
-    def __int__(self, other):
+    def __int__(self):
         return int(self)
 
-    def __bool__(self, other):
+    def __bool__(self):
         return bool(self)
 
 
+class function():
+    pass
+
+class built_in_function_or_method():
+    pass
 
 
     

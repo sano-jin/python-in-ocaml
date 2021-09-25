@@ -4,6 +4,9 @@ class Dog:
     def __init__(self, name):
         self.name = name
 
+    def __str__(self):
+        return 'Hello! I am ' + self.name + ', a friendly ' + self.kind.
+        
     def bark(self):
         print(self.name)
         

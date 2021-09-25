@@ -4,12 +4,6 @@ open Util.ResultExtra
 open Syntax
 open Util
 
-let intVal = function Ok i -> Ok (IntVal i) | Error _ as err -> err
-
-let boolVal = function Ok i -> Ok (BoolVal i) | Error _ as err -> err
-
-let stringVal = function Ok i -> Ok (StringVal i) | Error _ as err -> err
-
 let eval_obj eval obj prop args =
   let binding_of i arg = ("arg_" ^ string_of_int i, ref arg) in
   let bindings = List.mapi binding_of args in
@@ -36,10 +30,14 @@ let __bool__ eval = function
 
 let __str__ eval = function
   | IntVal i -> Ok (string_of_int i)
-  | BoolVal b -> Ok (string_of_bool b)
-  | VoidVal -> Ok "Void"
+  | BoolVal true -> Ok "True"
+  | BoolVal false -> Ok "False"
+  | VoidVal -> Ok "None"
   | StringVal str -> Ok str
-  | ObjectVal _ as obj -> extract_string <$> eval_obj eval obj "__str__" []
+  | ObjectVal variables_ref as obj ->
+      if Object.is_instance !variables_ref then
+        extract_string <$> eval_obj eval obj "__str__" []
+      else Ok (string_of_value obj)
   | _ -> failwith "NotImplemented"
 
 let __add__ eval = function

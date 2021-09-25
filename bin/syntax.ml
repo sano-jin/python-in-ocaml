@@ -48,17 +48,19 @@ type value =
   | BoolVal of bool
   | StringVal of string
   | LambdaVal of string list * stmt * env  (** closure *)
+  | SystemFunVal of string
   | ObjectVal of (string * value ref) list ref
 
 and env = (string * value ref) list ref list
 (** environment e.g. [("x", 1); ("y", 2)]*)
 
 let rec string_of_value = function
-  | VoidVal -> "void"
+  | VoidVal -> "None"
   | IntVal i -> string_of_int i
-  | BoolVal true -> "true"
-  | BoolVal false -> "false"
+  | BoolVal true -> "True"
+  | BoolVal false -> "False"
   | StringVal str -> str
+  | SystemFunVal name -> name
   | LambdaVal (vars, _, _) -> "lambda (" ^ String.concat ", " vars ^ "): ..."
   | ObjectVal _ as obj -> snd @@ string_of_object [] obj
 
@@ -96,14 +98,26 @@ let string_of_envs envs =
 (** some helper functions *)
 let extract_int = function
   | IntVal i -> i
-  | _ -> failwith @@ "type error. expected int"
+  | value ->
+      failwith @@ "TypeError: " ^ string_of_value value
+      ^ " is expected to be int"
 
 let extract_bool = function
   | BoolVal b -> b
-  | _ -> failwith @@ "type error. expected bool"
+  | value ->
+      failwith @@ "TypeError: " ^ string_of_value value
+      ^ " is expected to be bool"
 
 let extract_string = function
   | StringVal str -> str
-  | _ -> failwith @@ "type error. expected string"
+  | value ->
+      failwith @@ "TypeError: " ^ string_of_value value
+      ^ " is expected to be string"
 
 let seq_of_list = List.fold_left (fun acc stmt -> Seq (acc, stmt)) Skip
+
+let intVal = function Ok i -> Ok (IntVal i) | Error _ as err -> err
+
+let boolVal = function Ok i -> Ok (BoolVal i) | Error _ as err -> err
+
+let stringVal = function Ok i -> Ok (StringVal i) | Error _ as err -> err
