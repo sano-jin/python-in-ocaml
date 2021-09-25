@@ -46,22 +46,7 @@ let rec eval_exp envs exp =
       | _, argVals -> (
           let beta_conv argVals = function
             | LambdaVal (vars, body, envs') -> (
-                let* none_obj = eval_exp envs @@ Var "None" in
-                let rec combine_vars = function
-                  | var :: vars, value :: values ->
-                      let+ rest = combine_vars (vars, values) in
-                      (var, ref value) :: rest
-                  | var :: vars, [] ->
-                      let+ rest = combine_vars (vars, []) in
-                      (var, ref none_obj) :: rest
-                  | [], [] -> Ok []
-                  | [], _ ->
-                      failwith @@ "unmatched arity: expected "
-                      ^ string_of_int (List.length vars)
-                      ^ " but got "
-                      ^ string_of_int (List.length argVals)
-                in
-                let* new_env = combine_vars (vars, argVals) in
+                let new_env = List.combine vars @@ List.map ref argVals in
                 match eval_stmt [] (ref new_env :: envs') body with
                 | ReturnWith value -> Ok value
                 | ExceptionWith excp -> Error excp

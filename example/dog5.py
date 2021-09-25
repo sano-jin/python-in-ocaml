@@ -1,23 +1,23 @@
 class Dog:
     kind = 'canine'
-    
+
     def __init__(self, name):
         self.name = name
 
     def __str__(self):
-        return 'Hello! I am ' + self.name + ', a friendly ' + self.kind.
-        
+        return 'Hello! I am ' + self.name + ', a friendly ' + self.kind
+
     def bark(self):
         print(self.name)
-        
+
     def bark2(_):
         print('hoge')
-        
+
     def bark3(self):
         print(self.name)
 
 print(Dog)
-        
+
 d = Dog('Fido')
 e = Dog('Buddy')
 
