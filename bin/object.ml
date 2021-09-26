@@ -4,18 +4,6 @@ open Syntax
 open Util
 open Util.ResultExtra
 
-(*
-(** extract_object_variables_ref *)
-let dir = function
-  | ObjectVal obj_variables_ref -> !obj_variables_ref
-  | SystemFunVal name ->
-      failwith @@ "__dir__ ing built_in_function_or_method " ^ name
-      ^ ". This expected to be an object"
-  | value -> failwith @@ string_of_value value ^ " is expected to be an object"
-
-let dir_prop = dir <. ( ! ) <.. List.assoc
-*)
-
 let classObjVal class_obj_record = ClassObjVal class_obj_record
 
 (** クラスオブジェクトの mro を取得する
@@ -53,6 +41,7 @@ let app_instance instance_obj = function
   | SystemFunVal name as system_fun_val ->
       LambdaVal
         ( [],
+          (* todo: これは１引数であることを仮定している *)
           Return (App (Var name, [ Var "self" ])),
           [ ref [ (name, ref system_fun_val); ("self", ref instance_obj) ] ] )
   | other -> other
