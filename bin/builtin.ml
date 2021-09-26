@@ -17,7 +17,7 @@ let __int__ eval = function
   | BoolVal false -> Ok 0
   | VoidVal -> Ok 0
   | StringVal str -> Ok (int_of_string str)
-  | ObjectVal _ as obj -> extract_int <$> eval_obj eval obj "__int__" []
+  | InstObjVal _ as obj -> extract_int <$> eval_obj eval obj "__int__" []
   | _ -> failwith "NotImplemented"
 
 let __bool__ eval = function
@@ -25,7 +25,7 @@ let __bool__ eval = function
   | BoolVal b -> Ok b
   | VoidVal -> Ok false
   | StringVal str -> Ok (bool_of_string str)
-  | ObjectVal _ as obj -> extract_bool <$> eval_obj eval obj "__bool__" []
+  | InstObjVal _ as obj -> extract_bool <$> eval_obj eval obj "__bool__" []
   | _ -> failwith "NotImplemented"
 
 let __str__ eval = function
@@ -34,10 +34,11 @@ let __str__ eval = function
   | BoolVal false -> Ok "False"
   | VoidVal -> Ok "None"
   | StringVal str -> Ok str
-  | ObjectVal variables_ref as obj ->
-      if Object.is_instance !variables_ref then
-        extract_string <$> eval_obj eval obj "__str__" []
-      else Ok (string_of_value obj)
+  | InstObjVal _ as obj ->
+      extract_string
+      <$> ( eval_obj eval obj "__str__" [] <|> fun _ ->
+            eval_obj eval obj "__repl__" [] )
+  | ClassObjVal _ as obj -> Ok (string_of_value obj) (* repl する *)
   | _ -> failwith "NotImplemented"
 
 let __add__ eval = function
@@ -45,7 +46,7 @@ let __add__ eval = function
   | StringVal s, obj -> stringVal (( ^ ) s <$> __str__ eval obj)
   | BoolVal true, obj -> intVal (( + ) 1 <$> __int__ eval obj)
   | BoolVal false, obj -> intVal (( + ) 0 <$> __int__ eval obj)
-  | (ObjectVal _ as obj1), obj2 -> eval_obj eval obj1 "__add__" [ obj2 ]
+  | (InstObjVal _ as obj1), obj2 -> eval_obj eval obj1 "__add__" [ obj2 ]
   | _ -> failwith "NotImplemented"
 
 let __mul__ eval = function
@@ -59,8 +60,8 @@ let __mul__ eval = function
   | BoolVal false, IntVal _ -> Ok (IntVal 0)
   | BoolVal false, StringVal _ -> Ok (StringVal "")
   | BoolVal false, BoolVal _ -> Ok (BoolVal false)
-  | BoolVal false, (ObjectVal _ as obj2) -> eval_obj eval obj2 "__mul__" []
-  | (ObjectVal _ as obj1), obj2 -> eval_obj eval obj1 "__mul__" [ obj2 ]
+  | BoolVal false, (InstObjVal _ as obj2) -> eval_obj eval obj2 "__mul__" []
+  | (InstObjVal _ as obj1), obj2 -> eval_obj eval obj1 "__mul__" [ obj2 ]
   | _ -> failwith "NotImplemented"
 
 let __not__ eval = function
@@ -69,32 +70,36 @@ let __not__ eval = function
   | VoidVal -> Ok (BoolVal true)
   | StringVal "" -> Ok (BoolVal true)
   | StringVal _ -> Ok (StringVal "")
-  | ObjectVal _ as obj -> eval_obj eval obj "__not__" []
+  | InstObjVal _ as obj -> eval_obj eval obj "__not__" []
   | _ -> failwith "NotImplemented"
 
 let __lt__ eval = function
   | IntVal i, obj -> boolVal (( < ) i <$> __int__ eval obj)
   | StringVal s, obj -> boolVal (( < ) s <$> __str__ eval obj)
   | BoolVal b, obj -> boolVal (( < ) b <$> __bool__ eval obj)
-  | (ObjectVal _ as obj1), obj2 -> eval_obj eval obj1 "__lt__" [ obj2 ]
+  | (InstObjVal _ as obj1), obj2 -> eval_obj eval obj1 "__lt__" [ obj2 ]
   | _ -> failwith "NotImplemented"
 
 let __gt__ eval = function
   | IntVal i, obj -> boolVal (( > ) i <$> __int__ eval obj)
   | StringVal s, obj -> boolVal (( > ) s <$> __str__ eval obj)
   | BoolVal b, obj -> boolVal (( > ) b <$> __bool__ eval obj)
-  | (ObjectVal _ as obj1), obj2 -> eval_obj eval obj1 "__gt__" [ obj2 ]
+  | (InstObjVal _ as obj1), obj2 -> eval_obj eval obj1 "__gt__" [ obj2 ]
   | _ -> failwith "NotImplemented"
 
 let __eq__ eval = function
   | IntVal i, obj -> boolVal (( = ) i <$> __int__ eval obj)
   | StringVal s, obj -> boolVal (( = ) s <$> __str__ eval obj)
   | BoolVal b, obj -> boolVal (( = ) b <$> __bool__ eval obj)
-  | (ObjectVal _ as obj1), obj2 -> eval_obj eval obj1 "__eq__" [ obj2 ]
+  | (InstObjVal _ as obj1), obj2 -> eval_obj eval obj1 "__eq__" [ obj2 ]
+  | ClassObjVal class_obj1, ClassObjVal class_obj2 ->
+      Ok (BoolVal (class_obj1.__name__ = class_obj2.__name__))
   | _ -> failwith "NotImplemented"
 
 let __neq__ eval = function
   | (IntVal _ as x), y | (StringVal _ as x), y | (BoolVal _ as x), y ->
       __eq__ eval (x, y) >>= __not__ eval
-  | (ObjectVal _ as obj1), obj2 -> eval_obj eval obj1 "__neq__" [ obj2 ]
+  | (InstObjVal _ as obj1), obj2 -> eval_obj eval obj1 "__neq__" [ obj2 ]
+  | ClassObjVal class_obj1, ClassObjVal class_obj2 ->
+      Ok (BoolVal (class_obj1.__name__ <> class_obj2.__name__))
   | _ -> failwith "NotImplemented"

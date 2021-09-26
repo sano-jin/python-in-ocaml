@@ -19,6 +19,7 @@ class Dog:
 print(Dog)
 
 d = Dog('Fido')
+print('created Fido')        
 e = Dog('Buddy')
 
 

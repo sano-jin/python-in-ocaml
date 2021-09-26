@@ -11,6 +11,8 @@ let ( <$> ) = Result.map
 
 let ( let+ ) x f = Result.map f x
 
+let ( >=> ) f g x = f x >>= g
+
 let ( <|> ) l r = if Result.is_ok l then l else r ()
 
 (** monadic combinators for the traversible type *)

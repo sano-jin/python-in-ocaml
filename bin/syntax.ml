@@ -1,6 +1,7 @@
 (** syntax.ml *)
 
 open Util
+open Util.ListExtra
 
 (** expression *)
 type exp =
@@ -49,7 +50,19 @@ type value =
   | StringVal of string
   | LambdaVal of string list * stmt * env  (** closure *)
   | SystemFunVal of string
-  | ObjectVal of (string * value ref) list ref
+  | TupleVal of value list
+  | ClassObjVal of class_obj_val
+  | InstObjVal of {
+      __class__ : class_obj_val;
+      inst_vars : (string * value ref) list ref;
+    }
+
+and class_obj_val = {
+  __name__ : string;
+  __bases__ : class_obj_val list;
+  __mro__ : class_obj_val list;
+  class_vars : (string * value ref) list ref;
+}
 
 and env = (string * value ref) list ref list
 (** environment e.g. [("x", 1); ("y", 2)]*)
@@ -61,22 +74,52 @@ let rec string_of_value = function
   | BoolVal false -> "False"
   | StringVal str -> str
   | SystemFunVal name -> name
-  | LambdaVal (vars, _, _) -> "lambda (" ^ String.concat ", " vars ^ "): ..."
-  | ObjectVal _ as obj -> snd @@ string_of_object [] obj
+  | LambdaVal (vars, _, _) -> "\\" ^ String.concat " " vars ^ "."
+  | (TupleVal _ | ClassObjVal _ | InstObjVal _) as obj ->
+      snd @@ string_of_object [] obj
+
+and string_of_class_variables printed obj_variables_ref =
+  let vars, variable_refs = List.split !obj_variables_ref in
+  let variables = List.map ( ! ) variable_refs in
+  let printed, var_strs =
+    List.fold_left_map string_of_object printed variables
+  in
+  let strs = List.map2 (fun x y -> x ^ " : " ^ y) vars var_strs in
+  (printed, String.concat ", " strs)
+
+and string_of_class_obj printed class_obj_val =
+  let printed, vars_str =
+    string_of_class_variables printed class_obj_val.class_vars
+  in
+  let class_name_of class_obj = class_obj.__name__ in
+  ( printed,
+    Printf.sprintf "<class '%s' | __bases__: %s, __mro__: %s, %s>"
+      class_obj_val.__name__
+      (ListExtra.string_of_list class_name_of class_obj_val.__bases__)
+      (ListExtra.string_of_list class_name_of class_obj_val.__mro__)
+      vars_str )
 
 and string_of_object printed = function
-  | ObjectVal variables_ref as self ->
-      if List.memq self printed then (printed, "<~")
+  | ClassObjVal class_obj_val as self ->
+      if List.memq self printed then (printed, "<cycle>")
+      else string_of_class_obj (self :: printed) class_obj_val
+  | InstObjVal inst_obj_val as self ->
+      if List.memq self printed then (printed, "<cycle>")
       else
-        let vars, variable_refs = List.split !variables_ref in
-        let variables = List.map ( ! ) variable_refs in
-        let printeds, strs =
-          List.fold_left_map string_of_object (self :: printed) variables
+        let printed, vars_str =
+          string_of_class_variables (self :: printed) inst_obj_val.inst_vars
         in
-        let strs = List.combine vars strs in
-        let strs = List.map (fun (x, y) -> x ^ " : " ^ y) strs in
-        (printeds, "[" ^ String.concat ", " strs ^ "]")
-  | other -> (printed, string_of_value other)
+        ( printed,
+          Printf.sprintf "<%s | %s>" inst_obj_val.__class__.__name__ vars_str )
+  | TupleVal values as self ->
+      if List.memq self printed then (printed, "<cycle>")
+      else
+        let printed, strs =
+          List.fold_left_map string_of_object printed values
+        in
+        let last_comma = if List.length strs = 1 then "," else "" in
+        (printed, "(" ^ String.concat ", " strs ^ last_comma ^ ")")
+  | value -> (value :: printed, string_of_value value)
 
 type ('a, 'b, 'c) result_with =
   | ProceedWith of 'a
@@ -84,9 +127,6 @@ type ('a, 'b, 'c) result_with =
   | ContinueWith of 'a
   | BreakWith of 'a
   | ExceptionWith of 'c
-
-let string_of_list string_of_elem list =
-  "[" ^ String.concat "; " (List.map string_of_elem list) ^ "]"
 
 let string_of_envs envs =
   let string_of_binding (var, value_ref) =

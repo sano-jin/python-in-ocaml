@@ -7,8 +7,7 @@ open Parsing
 
 (** The evaluator *)
 let rec eval_exp envs exp =
-  let ( let* ) = Result.bind in
-  let ( let+ ) x f = Result.map f x in
+  let open ResultExtra in
   let eval_helper env = eval_exp (env :: envs) in
   let eval_binop f e1 e2 =
     let* v1 = eval_exp envs e1 in
@@ -42,81 +41,49 @@ let rec eval_exp envs exp =
   | Lambda (args, body) -> Ok (LambdaVal (args, body, envs))
   | App (f, args) -> (
       let* argVals = ResultExtra.map_results (eval_exp envs) args in
-      match (f, argVals) with
-      | _, argVals -> (
-          let beta_conv argVals = function
-            | LambdaVal (vars, body, envs') -> (
-                let new_env = List.combine vars @@ List.map ref argVals in
-                match eval_stmt [] (ref new_env :: envs') body with
-                | ReturnWith value -> Ok value
-                | ExceptionWith excp -> Error excp
-                | _ -> failwith "function ended without return")
-            | other_val ->
-                failwith @@ string_of_value other_val
-                ^ " is expected to be a function type"
-          in
-          let* f = eval_exp envs f in
-          match f with
-          | LambdaVal _ as f -> beta_conv argVals f
-          | SystemFunVal "print" ->
-              let* arg_strs =
-                ResultExtra.map_results (Builtin.__str__ eval_helper) argVals
-              in
-              print_endline @@ String.concat " " arg_strs;
-              eval_exp envs @@ Var "None"
-          | SystemFunVal "repl" ->
-              let repl_str =
-                String.concat " " @@ List.map string_of_value argVals
-              in
-              Ok (StringVal repl_str)
-          | ObjectVal class_fields_ref as class_obj ->
-              let init =
-                Option.get
-                @@ extract_class_variable_opt !class_fields_ref "__init__"
-              in
-              let instance_obj =
-                ObjectVal (ref [ ("__class__", ref class_obj) ])
-              in
-              ignore @@ beta_conv (instance_obj :: argVals) init;
-              Ok instance_obj
-          | other_val ->
-              failwith @@ string_of_value other_val
-              ^ " is expected to be a class object or a function type"))
-  | Access (obj, prop) -> (
-      let* obj = eval_exp envs obj in
-      let access_non_obj class_name value =
-        let* class_obj = eval_exp envs @@ Var class_name in
-        if prop = "__class__" then Ok class_obj
-        else
-          match extract_class_variable_opt (dir class_obj) prop with
-          | Some class_variable -> Ok (app_instance value class_variable)
-          | None ->
-              failwith @@ "No such field " ^ prop ^ " in object "
-              ^ string_of_value obj
+      let* f = eval_exp envs f in
+      let beta_conv argVals = function
+        | LambdaVal (vars, body, envs') -> (
+            let new_env = List.combine vars @@ List.map ref argVals in
+            match eval_stmt [] (ref new_env :: envs') body with
+            | ReturnWith value -> Ok value
+            | ExceptionWith excp -> Error excp
+            | _ -> failwith "function ended without return")
+        | other_val ->
+            failwith @@ string_of_value other_val
+            ^ " is expected to be a function type"
       in
-      match obj with
-      | ObjectVal _ as obj -> (
-          match extract_variable_opt obj prop with
-          | Some prop -> Ok prop
-          | None ->
-              failwith @@ "No such field " ^ prop ^ " in object "
-              ^ string_of_value obj)
-      | VoidVal -> access_non_obj "None" obj
-      | IntVal _ -> access_non_obj "int" obj
-      | BoolVal _ -> access_non_obj "boolean" obj
-      | StringVal _ -> access_non_obj "string" obj
-      | LambdaVal _ -> access_non_obj "function" obj
-      | SystemFunVal _ ->
-          prerr_endline
-          @@ "accessing a property of a built_in_function_or_method";
-          access_non_obj "built_in_function_or_method" obj)
+      match f with
+      | LambdaVal _ as f -> beta_conv argVals f
+      | SystemFunVal "print" ->
+          print_endline @@ String.concat " " @@ Result.get_ok
+          @@ ResultExtra.map_results (Builtin.__str__ eval_helper) argVals;
+          Ok VoidVal
+      | SystemFunVal "repl" ->
+          Ok (StringVal (String.concat " " @@ List.map string_of_value argVals))
+      | ClassObjVal class_obj_val ->
+          let init =
+            Result.get_ok @@ extract_class_variable_opt class_obj_val "__init__"
+          in
+          let instance_obj =
+            InstObjVal { __class__ = class_obj_val; inst_vars = ref [] }
+          in
+          ignore @@ beta_conv (instance_obj :: argVals) init;
+          Ok instance_obj
+      | other_val ->
+          failwith @@ string_of_value other_val
+          ^ " is expected to be a class object or a function type")
+  | Access (obj, prop) ->
+      let* obj = eval_exp envs obj in
+      extract_variable_opt (eval_exp envs) prop obj
   | Class (name, vars, body) -> (
       let vars = if vars = [] then [ "object" ] else vars in
-      let* base_classes = ResultExtra.map_results (Env.lookup envs) vars in
-      let bases = List.combine vars @@ List.map ref base_classes in
+      let* bases =
+        ResultExtra.map_results (Env.lookup envs >=> extract_class_obj_val) vars
+      in
       let env, this_class_obj = init_class_obj name bases [] envs in
       match eval_stmt [] (env :: envs) body with
-      | ProceedWith _ -> Ok this_class_obj
+      | ProceedWith _ -> Ok (ClassObjVal this_class_obj)
       | _ ->
           failwith
           @@ "cannot return/continue/break/throw exception in class definition")
@@ -148,16 +115,19 @@ and eval_stmt nonlocals envs stmt =
   | Assign (Var var, e) ->
       let* v = eval_exp envs e in
       assign envs var v
-  | Assign (Access (obj, prop), exp) -> (
+  | Assign (Access (obj, prop), exp) ->
       let* obj = eval_exp envs obj in
       let* value = eval_exp envs exp in
-      match obj with
-      | ObjectVal dict ->
-          (match List.assoc_opt prop !dict with
-          | Some prop -> prop := value
-          | None -> dict := (prop, ref value) :: !dict);
-          proceed
-      | _ -> failwith @@ "Cannot access to a non-object with a dot notation")
+      let dict =
+        match obj with
+        | InstObjVal inst_obj_val -> inst_obj_val.inst_vars
+        | ClassObjVal class_obj_val -> class_obj_val.class_vars
+        | _ -> failwith @@ "Cannot access to a non-object with a dot notation"
+      in
+      (match List.assoc_opt prop !dict with
+      | Some prop -> prop := value
+      | None -> dict := (prop, ref value) :: !dict);
+      proceed
   | Assign (_, _) -> failwith @@ "cannot assign to operator"
   | NonLocal var -> ProceedWith (var :: nonlocals)
   | Exp e ->
@@ -196,7 +166,8 @@ and eval_stmt nonlocals envs stmt =
             | (except_exp, var, body) :: t -> (
                 match eval_exp envs except_exp with
                 | Ok except_value ->
-                    if is_subclass_of except_obj except_value then
+                    if Result.get_ok @@ is_subclass_of except_obj except_value
+                    then
                       eval_stmt nonlocals
                         (ref [ (var, ref except_obj) ] :: envs)
                         body
@@ -212,14 +183,17 @@ and eval_stmt nonlocals envs stmt =
   | Continue -> ContinueWith nonlocals
 
 and read_and_run filepath module_name =
-  let base_env, this_module_obj =
-    init_class_obj module_name
-      [ ("object", Env.object_class_obj_ref) ]
-      Env.init_bindings []
+  let _, this_module_obj =
+    init_class_obj module_name [] [ ("object", ref Env.object_class_obj) ] []
+  in
+  let base_env =
+    ("__name__", ref @@ StringVal module_name)
+    :: (Env.init_bindings @ !(this_module_obj.class_vars))
   in
   match
-    eval_stmt [] [ base_env ] @@ Seq (Env.system_stmt, read_and_parse filepath)
+    eval_stmt [] [ ref base_env ]
+    @@ Seq (Env.system_stmt, read_and_parse filepath)
   with
-  | ProceedWith _ | ReturnWith _ -> Ok this_module_obj
+  | ProceedWith _ | ReturnWith _ -> Ok (ClassObjVal this_module_obj)
   | ExceptionWith err -> Error err
   | BreakWith _ | ContinueWith _ -> failwith "file ended with break/continue"

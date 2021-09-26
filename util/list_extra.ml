@@ -169,3 +169,6 @@ let combine_opt list1 list2 =
     | _ -> None
   in
   helper (list1, list2)
+
+let string_of_list string_of_elem list =
+  "[" ^ String.concat "; " (List.map string_of_elem list) ^ "]"
