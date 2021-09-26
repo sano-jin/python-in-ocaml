@@ -50,6 +50,11 @@ let extract_class_variable_opt class_var_obj = function
 let app_instance instance_obj = function
   | LambdaVal (var :: vars, body, env :: envs) ->
       LambdaVal (vars, body, ref ((var, ref instance_obj) :: !env) :: envs)
+  | SystemFunVal name as system_fun_val ->
+      LambdaVal
+        ( [],
+          Return (App (Var name, [ Var "self" ])),
+          [ ref [ (name, ref system_fun_val); ("self", ref instance_obj) ] ] )
   | other -> other
 
 (** クラスまたはインスタンスオブジェクト [value] からそのクラスの値 [class_obj_val] を取り出す *)

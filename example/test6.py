@@ -33,4 +33,4 @@ print(c2.static_elem, c2.object_elem) # ---> 222 456
 
 print(c1)
 print(c2)
-print(MyClass)
+print(MyClass, MyClass)

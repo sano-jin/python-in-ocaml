@@ -24,7 +24,7 @@ let object_class_obj =
   ClassObjVal
     (snd
        (Object.init_class_obj "object" []
-          [ ("__repl__", ref @@ repl); ("__str__", ref @@ repl) ]
+          [ ("__repl__", ref @@ repl); ("__str__", ref @@ SystemFunVal "repl") ]
           []))
 
 let init_bindings =
